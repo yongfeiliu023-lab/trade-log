@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>交易纪律训练日志</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1117;
+      --panel: #111a24;
+      --panel-2: #162232;
+      --text: #e8eef6;
+      --muted: #8ea0b6;
+      --line: #263546;
+      --accent: #61a5ff;
+      --green: #32d583;
+      --red: #ff6b6b;
+      --yellow: #f7c948;
+      --shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: clamp(26px, 4vw, 38px);
+      line-height: 1.1;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-bottom: 14px;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .sync-status {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .card,
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      padding: 14px;
+      min-height: 92px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 7px;
+    }
+
+    .value {
+      font-size: 25px;
+      font-weight: 760;
+      overflow-wrap: anywhere;
+    }
+
+    .section {
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    form {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .wide {
+      grid-column: span 2;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 10px 11px;
+      font: inherit;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(97, 165, 255, 0.13);
+    }
+
+    input[readonly] {
+      color: var(--muted);
+      background: #121b27;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .trade-gate {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(97, 165, 255, 0.08);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .approve-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid rgba(50, 213, 131, 0.55);
+      border-radius: 7px;
+      color: var(--green);
+      background: rgba(50, 213, 131, 0.1);
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 42px;
+      padding: 9px 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .check input {
+      width: 17px;
+      min-height: 17px;
+      accent-color: var(--accent);
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      background: var(--panel-2);
+      padding: 9px 13px;
+      font: inherit;
+      font-weight: 680;
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #3c526a;
+    }
+
+    .primary {
+      border-color: #2f73d9;
+      background: #1f64c8;
+    }
+
+    .danger {
+      border-color: rgba(255, 107, 107, 0.52);
+      color: #ffd6d6;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1120px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #101925;
+      color: var(--muted);
+      font-weight: 700;
+      z-index: 1;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .note {
+      max-width: 240px;
+      white-space: normal;
+      color: var(--muted);
+    }
+
+    .profit {
+      color: var(--green);
+      font-weight: 760;
+    }
+
+    .loss {
+      color: var(--red);
+      font-weight: 760;
+    }
+
+    .flat {
+      color: var(--yellow);
+      font-weight: 760;
+    }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 900px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .header-actions {
+        justify-content: flex-start;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 18px, 1180px);
+        padding-top: 14px;
+      }
+
+      .stats,
+      form,
+      .checks {
+        grid-template-columns: 1fr;
+      }
+
+      .wide,
+      .full {
+        grid-column: 1;
+      }
+
+      .section {
+        padding: 14px;
+      }
+
+      .card {
+        min-height: 80px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>交易纪律训练日志</h1>
+        <p class="subtitle">记录每一笔 QQQ 期权交易，盯住纪律、情绪和真实盈亏。</p>
+        <div class="sync-status" id="syncStatus">同步状态：准备连接 Supabase</div>
+      </div>
+      <div class="header-actions">
+        <button id="exportCsv" type="button">导出 CSV</button>
+        <button id="clearAll" class="danger" type="button">清空全部</button>
+      </div>
+    </header>
+
+    <section class="stats" aria-label="交易统计">
+      <div class="card"><div class="label">总交易次数</div><div class="value" id="totalTrades">0</div></div>
+      <div class="card"><div class="label">胜率</div><div class="value" id="winRate">0%</div></div>
+      <div class="card"><div class="label">纪律执行率</div><div class="value" id="disciplineRate">0%</div></div>
+      <div class="card"><div class="label">总盈亏</div><div class="value" id="totalPnl">$0.00</div></div>
+      <div class="card"><div class="label">平均盈利</div><div class="value" id="avgWin">$0.00</div></div>
+      <div class="card"><div class="label">平均亏损</div><div class="value" id="avgLoss">$0.00</div></div>
+      <div class="card"><div class="label">盈亏比</div><div class="value" id="rewardRisk">0.00</div></div>
+      <div class="card"><div class="label">连续亏损次数</div><div class="value" id="lossStreak">0</div></div>
+    </section>
+
+    <section class="section">
+      <h2>新增交易记录</h2>
+      <form id="tradeForm">
+        <div class="field">
+          <label for="date">日期</label>
+          <input id="date" name="date" type="date" required>
+        </div>
+        <div class="field">
+          <label for="symbol">标的</label>
+          <input id="symbol" name="symbol" type="text" value="QQQ" required>
+        </div>
+
+        <div class="field full">
+          <label>交易信号</label>
+          <div class="checks" id="signalChecks">
+            <label class="check"><input id="macdSignal" name="macdSignal" type="checkbox"> MACD</label>
+            <label class="check"><input id="kdjSignal" name="kdjSignal" type="checkbox"> KDJ</label>
+            <label class="check"><input id="maSignal" name="maSignal" type="checkbox"> MA</label>
+          </div>
+        </div>
+
+        <div class="field full">
+          <div class="trade-gate">
+            <span class="tiny" id="approveHint">MACD、KDJ、MA 全部勾选后出现交易设置。</span>
+            <span class="approve-badge hidden" id="approveBadge">APPROVE</span>
+          </div>
+        </div>
+
+        <div class="field full hidden" id="tradeSetup">
+          <label>交易设置</label>
+          <div class="checks">
+            <div class="field">
+              <label for="tradeType">交易类型</label>
+              <select id="tradeType" name="tradeType" required disabled>
+                <option value="Call">Call</option>
+                <option value="Put">Put</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="entryPrice">入场价格</label>
+              <input id="entryPrice" name="entryPrice" type="number" min="0" step="0.01" required disabled>
+            </div>
+            <div class="field">
+              <label for="takeProfitPrice">止盈价格 +30%</label>
+              <input id="takeProfitPrice" name="takeProfitPrice" type="number" min="0" step="0.01" readonly disabled>
+            </div>
+            <div class="field">
+              <label for="stopLossPrice">止损价格 -30%</label>
+              <input id="stopLossPrice" name="stopLossPrice" type="number" min="0" step="0.01" readonly disabled>
+            </div>
+            <div class="field">
+              <label for="positionSize">仓位选择</label>
+              <select id="positionSize" name="positionSize" required disabled>
+                <option value="1/3">1/3</option>
+                <option value="1/2">1/2</option>
+                <option value="全仓">全仓</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="exitPrice">实际出场价格</label>
+          <input id="exitPrice" name="exitPrice" type="number" min="0" step="0.01">
+        </div>
+
+        <div class="field">
+          <label for="result">结果</label>
+          <select id="result" name="result" required>
+            <option value="未平仓">未平仓</option>
+            <option value="止盈">止盈</option>
+            <option value="止损">止损</option>
+            <option value="手动平仓">手动平仓</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="followedRules">是否按规则执行</label>
+          <select id="followedRules" name="followedRules" required>
+            <option value="是">是</option>
+            <option value="否">否</option>
+          </select>
+        </div>
+        <div class="field wide">
+          <label for="emotion">情绪状态</label>
+          <select id="emotion" name="emotion" required>
+            <option value="平静">平静</option>
+            <option value="紧张">紧张</option>
+            <option value="贪婪">贪婪</option>
+            <option value="恐惧">恐惧</option>
+            <option value="想翻本">想翻本</option>
+          </select>
+        </div>
+
+        <div class="field full">
+          <label>行为标记</label>
+          <div class="checks">
+            <label class="check"><input id="soldEarly" name="soldEarly" type="checkbox"> 是否提前卖出</label>
+            <label class="check"><input id="movedStop" name="movedStop" type="checkbox"> 是否移动止损</label>
+            <label class="check"><input id="addedPosition" name="addedPosition" type="checkbox"> 是否加仓</label>
+          </div>
+        </div>
+
+        <div class="field full">
+          <label for="notes">备注</label>
+          <textarea id="notes" name="notes" placeholder="记录入场理由、复盘观察、情绪触发点等"></textarea>
+        </div>
+
+        <div class="form-actions full">
+          <span class="tiny" id="pnlPreview">本笔盈亏：$0.00</span>
+          <button class="primary" id="saveTrade" type="submit" disabled>保存记录</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="section">
+      <h2>交易记录</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>标的</th>
+              <th>类型</th>
+              <th>信号</th>
+              <th>Approve</th>
+              <th>入场</th>
+              <th>止盈</th>
+              <th>止损</th>
+              <th>仓位</th>
+              <th>出场</th>
+              <th>盈亏</th>
+              <th>结果</th>
+              <th>规则</th>
+              <th>情绪</th>
+              <th>提前卖</th>
+              <th>移止损</th>
+              <th>加仓</th>
+              <th>备注</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tradeTable"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyState">还没有交易记录。先记录一笔，让数据开始说话。</div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "trade-discipline-log-v1";
+    const SUPABASE_URL = "https://thakeglzlctbpxqfyqfv.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYWtlZ2x6bGN0YnB4cWZ5cWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3Nzk5NDMsImV4cCI6MjA5NjM1NTk0M30.gypmu5KomL4frQ8_cMURj803IrL2IPegni5XvKxXHNw";
+    const SUPABASE_TABLE = "trades";
+    const form = document.querySelector("#tradeForm");
+    const tableBody = document.querySelector("#tradeTable");
+    const emptyState = document.querySelector("#emptyState");
+    const syncStatus = document.querySelector("#syncStatus");
+    const entryPrice = document.querySelector("#entryPrice");
+    const takeProfitPrice = document.querySelector("#takeProfitPrice");
+    const stopLossPrice = document.querySelector("#stopLossPrice");
+    const exitPrice = document.querySelector("#exitPrice");
+    const pnlPreview = document.querySelector("#pnlPreview");
+    const signalInputs = [...document.querySelectorAll("#signalChecks input")];
+    const tradeSetup = document.querySelector("#tradeSetup");
+    const approveBadge = document.querySelector("#approveBadge");
+    const approveHint = document.querySelector("#approveHint");
+    const saveTrade = document.querySelector("#saveTrade");
+    const tradeType = document.querySelector("#tradeType");
+    const positionSize = document.querySelector("#positionSize");
+
+    let trades = loadTrades();
+
+    const money = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2
+    });
+
+    document.querySelector("#date").valueAsDate = new Date();
+    updateApprovalState();
+    render();
+    syncFromSupabase();
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const tradeDate = data.get("date");
+
+      if (getTradeCountForDate(tradeDate) >= 3) {
+        const shouldContinue = confirm("今天已经记录了 3 笔交易。你确定要进行第 4 笔交易吗？");
+        if (!shouldContinue) return;
+      }
+
+      const trade = {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        date: tradeDate,
+        symbol: cleanText(data.get("symbol")) || "QQQ",
+        tradeType: data.get("tradeType"),
+        entryPrice: toNumber(data.get("entryPrice")),
+        takeProfitPrice: toNumber(data.get("takeProfitPrice")),
+        stopLossPrice: toNumber(data.get("stopLossPrice")),
+        positionSize: data.get("positionSize") || "1/3",
+        exitPrice: toNumber(data.get("exitPrice")),
+        result: data.get("result"),
+        followedRules: data.get("followedRules"),
+        emotion: data.get("emotion"),
+        macdSignal: data.has("macdSignal"),
+        kdjSignal: data.has("kdjSignal"),
+        maSignal: data.has("maSignal"),
+        approved: isApproved(),
+        soldEarly: data.has("soldEarly"),
+        movedStop: data.has("movedStop"),
+        addedPosition: data.has("addedPosition"),
+        notes: cleanText(data.get("notes"))
+      };
+
+      trades.unshift(trade);
+      saveLocalTrades();
+      render();
+
+      try {
+        setSyncStatus("正在同步新增记录...");
+        await insertTradeToSupabase(trade);
+        setSyncStatus("已同步到 Supabase");
+      } catch (error) {
+        console.error(error);
+        setSyncStatus("Supabase 同步失败，记录已保存在本地缓存");
+        alert(`Supabase 同步失败，记录暂存在本地。\n${error.message}`);
+      }
+
+      form.reset();
+      document.querySelector("#date").valueAsDate = new Date();
+      document.querySelector("#symbol").value = "QQQ";
+      updateApprovalState();
+      updateAutoPrices();
+      updatePnlPreview();
+    });
+
+    tableBody.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-delete]");
+      if (!button) return;
+      const trade = trades.find((item) => item.id === button.dataset.delete);
+      if (!trade) return;
+      const label = `${trade.date} ${trade.symbol} ${trade.tradeType}`;
+      if (confirm(`删除这条记录？\n${label}`)) {
+        try {
+          setSyncStatus("正在删除 Supabase 记录...");
+          await deleteTradeFromSupabase(trade.id);
+          trades = trades.filter((item) => item.id !== trade.id);
+          saveLocalTrades();
+          render();
+          setSyncStatus("已同步到 Supabase");
+        } catch (error) {
+          console.error(error);
+          setSyncStatus("删除失败，请检查 Supabase 表和网络");
+          alert(`删除失败。\n${error.message}`);
+        }
+      }
+    });
+
+    document.querySelector("#clearAll").addEventListener("click", async () => {
+      if (!trades.length) return;
+      if (confirm("确定清空全部交易记录？此操作无法撤销。")) {
+        try {
+          setSyncStatus("正在清空 Supabase 数据...");
+          await clearSupabaseTrades();
+          trades = [];
+          saveLocalTrades();
+          render();
+          setSyncStatus("已同步到 Supabase");
+        } catch (error) {
+          console.error(error);
+          setSyncStatus("清空失败，请检查 Supabase 表和网络");
+          alert(`清空失败。\n${error.message}`);
+        }
+      }
+    });
+
+    document.querySelector("#exportCsv").addEventListener("click", () => {
+      if (!trades.length) {
+        alert("当前没有可导出的交易记录。");
+        return;
+      }
+
+      const headers = [
+        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "止盈价格", "止损价格",
+        "仓位选择", "实际出场价格", "盈亏", "结果", "是否按规则执行", "情绪状态",
+        "是否提前卖出", "是否移动止损", "是否加仓", "备注"
+      ];
+      const rows = trades.map((trade) => [
+        trade.date,
+        trade.symbol,
+        trade.tradeType,
+        yesNo(trade.macdSignal),
+        yesNo(trade.kdjSignal),
+        yesNo(trade.maSignal),
+        yesNo(trade.approved),
+        trade.entryPrice,
+        trade.takeProfitPrice,
+        trade.stopLossPrice,
+        trade.positionSize || "1/3",
+        trade.exitPrice,
+        getPnl(trade),
+        trade.result,
+        trade.followedRules,
+        trade.emotion,
+        yesNo(trade.soldEarly),
+        yesNo(trade.movedStop),
+        yesNo(trade.addedPosition),
+        trade.notes
+      ]);
+      const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `trade-discipline-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    [entryPrice, exitPrice].forEach((input) => {
+      input.addEventListener("input", updatePnlPreview);
+    });
+
+    entryPrice.addEventListener("input", updateAutoPrices);
+    positionSize.addEventListener("change", confirmFullPosition);
+    signalInputs.forEach((input) => input.addEventListener("change", updateApprovalState));
+
+    function render() {
+      renderStats();
+      renderTable();
+    }
+
+    function renderStats() {
+      const closed = trades.filter((trade) => Number.isFinite(getPnl(trade)));
+      const wins = closed.filter((trade) => getPnl(trade) > 0);
+      const losses = closed.filter((trade) => getPnl(trade) < 0);
+      const totalPnl = sum(closed.map(getPnl));
+      const avgWin = wins.length ? sum(wins.map(getPnl)) / wins.length : 0;
+      const avgLoss = losses.length ? sum(losses.map(getPnl)) / losses.length : 0;
+      const rewardRisk = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : 0;
+      const disciplineCount = trades.filter((trade) => trade.followedRules === "是").length;
+
+      setText("#totalTrades", trades.length);
+      setText("#winRate", percent(closed.length ? wins.length / closed.length : 0));
+      setText("#disciplineRate", percent(trades.length ? disciplineCount / trades.length : 0));
+      setMoney("#totalPnl", totalPnl);
+      setMoney("#avgWin", avgWin);
+      setMoney("#avgLoss", avgLoss);
+      setText("#rewardRisk", rewardRisk.toFixed(2));
+      setText("#lossStreak", getCurrentLossStreak());
+    }
+
+    function renderTable() {
+      emptyState.style.display = trades.length ? "none" : "block";
+      tableBody.innerHTML = trades.map((trade) => {
+        const pnl = getPnl(trade);
+        const pnlClass = getPnlClass(pnl);
+        return `
+          <tr>
+            <td>${escapeHtml(trade.date)}</td>
+            <td>${escapeHtml(trade.symbol)}</td>
+            <td>${escapeHtml(trade.tradeType)}</td>
+            <td>${escapeHtml(getSignalsLabel(trade))}</td>
+            <td>${yesNo(trade.approved)}</td>
+            <td>${formatNumber(trade.entryPrice)}</td>
+            <td>${formatNumber(trade.takeProfitPrice)}</td>
+            <td>${formatNumber(trade.stopLossPrice)}</td>
+            <td>${escapeHtml(trade.positionSize || "1/3")}</td>
+            <td>${formatNumber(trade.exitPrice)}</td>
+            <td class="${pnlClass}">${formatPnl(pnl)}</td>
+            <td>${escapeHtml(trade.result)}</td>
+            <td>${escapeHtml(trade.followedRules)}</td>
+            <td>${escapeHtml(trade.emotion)}</td>
+            <td>${yesNo(trade.soldEarly)}</td>
+            <td>${yesNo(trade.movedStop)}</td>
+            <td>${yesNo(trade.addedPosition)}</td>
+            <td class="note">${escapeHtml(trade.notes || "-")}</td>
+            <td><button class="danger" type="button" data-delete="${trade.id}">删除</button></td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function updateApprovalState() {
+      const approved = isApproved();
+      tradeSetup.classList.toggle("hidden", !approved);
+      approveBadge.classList.toggle("hidden", !approved);
+      approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
+      saveTrade.disabled = !approved;
+      [tradeType, entryPrice, takeProfitPrice, stopLossPrice, positionSize].forEach((input) => {
+        input.disabled = !approved;
+      });
+      if (approved) updateAutoPrices();
+    }
+
+    function confirmFullPosition() {
+      if (positionSize.value !== "全仓") return;
+      if (!confirm("你确定要全仓吗？")) {
+        positionSize.value = "1/3";
+      }
+    }
+
+    function updateAutoPrices() {
+      const entry = toNumber(entryPrice.value);
+      if (!Number.isFinite(entry)) {
+        takeProfitPrice.value = "";
+        stopLossPrice.value = "";
+        updatePnlPreview();
+        return;
+      }
+      takeProfitPrice.value = (entry * 1.3).toFixed(2);
+      stopLossPrice.value = (entry * 0.7).toFixed(2);
+      updatePnlPreview();
+    }
+
+    function updatePnlPreview() {
+      const previewTrade = {
+        entryPrice: toNumber(entryPrice.value),
+        exitPrice: toNumber(exitPrice.value)
+      };
+      const pnl = getPnl(previewTrade);
+      pnlPreview.textContent = `本笔盈亏：${formatPnl(pnl)}`;
+      pnlPreview.className = `tiny ${getPnlClass(pnl)}`;
+    }
+
+    function getPnl(trade) {
+      if (!Number.isFinite(trade.entryPrice) || !Number.isFinite(trade.exitPrice)) return NaN;
+      return trade.exitPrice - trade.entryPrice;
+    }
+
+    function getTradeCountForDate(date) {
+      return trades.filter((trade) => trade.date === date).length;
+    }
+
+    function isApproved() {
+      return signalInputs.every((input) => input.checked);
+    }
+
+    function getSignalsLabel(trade) {
+      const signals = [];
+      if (trade.macdSignal) signals.push("MACD");
+      if (trade.kdjSignal) signals.push("KDJ");
+      if (trade.maSignal) signals.push("MA");
+      return signals.length ? signals.join(" / ") : "-";
+    }
+
+    function getCurrentLossStreak() {
+      const chronological = [...trades].sort((a, b) => {
+        const byDate = new Date(a.date) - new Date(b.date);
+        return byDate || new Date(a.createdAt) - new Date(b.createdAt);
+      });
+
+      let streak = 0;
+      for (let i = chronological.length - 1; i >= 0; i -= 1) {
+        const pnl = getPnl(chronological[i]);
+        if (!Number.isFinite(pnl)) continue;
+        if (pnl < 0) streak += 1;
+        else break;
+      }
+      return streak;
+    }
+
+    async function syncFromSupabase() {
+      try {
+        setSyncStatus("正在从 Supabase 读取数据...");
+        const localTrades = [...trades];
+        const remoteTrades = await fetchTradesFromSupabase();
+
+        if (!remoteTrades.length && localTrades.length) {
+          const shouldUpload = confirm("Supabase 当前没有记录。是否把本地缓存里的交易记录上传到 Supabase？");
+          if (shouldUpload) {
+            setSyncStatus("正在上传本地缓存到 Supabase...");
+            await Promise.all(localTrades.map(insertTradeToSupabase));
+            trades = localTrades;
+            saveLocalTrades();
+            render();
+            setSyncStatus("本地缓存已上传到 Supabase");
+            return;
+          }
+
+          setSyncStatus("已连接 Supabase，继续显示本地缓存");
+          return;
+        }
+
+        trades = remoteTrades;
+        saveLocalTrades();
+        render();
+        setSyncStatus("已同步到 Supabase");
+      } catch (error) {
+        console.error(error);
+        setSyncStatus("Supabase 读取失败，正在显示本地缓存");
+      }
+    }
+
+    async function fetchTradesFromSupabase() {
+      const rows = await supabaseRequest("?select=id,created_at,trade_date,data&order=created_at.desc");
+      return rows.map((row) => normalizeTrade({
+        ...row.data,
+        id: row.id,
+        createdAt: row.data.createdAt || row.created_at,
+        date: row.data.date || row.trade_date
+      }));
+    }
+
+    async function insertTradeToSupabase(trade) {
+      await supabaseRequest("", {
+        method: "POST",
+        body: {
+          id: trade.id,
+          trade_date: trade.date,
+          data: trade
+        },
+        prefer: "return=minimal"
+      });
+    }
+
+    async function deleteTradeFromSupabase(id) {
+      await supabaseRequest(`?id=eq.${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        prefer: "return=minimal"
+      });
+    }
+
+    async function clearSupabaseTrades() {
+      await Promise.all(trades.map((trade) => deleteTradeFromSupabase(trade.id)));
+    }
+
+    async function supabaseRequest(path, options = {}) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${path}`, {
+        method: options.method || "GET",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          ...(options.prefer ? { Prefer: options.prefer } : {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Supabase request failed: ${response.status}`);
+      }
+
+      if (response.status === 204) return null;
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    function loadTrades() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(saved) ? saved.map(normalizeTrade) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLocalTrades() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
+    }
+
+    function normalizeTrade(trade) {
+      return {
+        ...trade,
+        id: trade.id || crypto.randomUUID(),
+        createdAt: trade.createdAt || new Date().toISOString(),
+        positionSize: trade.positionSize || "1/3",
+        approved: Boolean(trade.approved),
+        macdSignal: Boolean(trade.macdSignal),
+        kdjSignal: Boolean(trade.kdjSignal),
+        maSignal: Boolean(trade.maSignal),
+        soldEarly: Boolean(trade.soldEarly),
+        movedStop: Boolean(trade.movedStop),
+        addedPosition: Boolean(trade.addedPosition)
+      };
+    }
+
+    function setSyncStatus(message) {
+      syncStatus.textContent = `同步状态：${message}`;
+    }
+
+    function cleanText(value) {
+      return String(value || "").trim();
+    }
+
+    function toNumber(value) {
+      const text = String(value || "").trim();
+      if (!text) return NaN;
+      const number = Number(text);
+      return Number.isFinite(number) ? number : NaN;
+    }
+
+    function sum(numbers) {
+      return numbers.reduce((total, number) => total + number, 0);
+    }
+
+    function percent(value) {
+      return `${(value * 100).toFixed(1)}%`;
+    }
+
+    function yesNo(value) {
+      return value ? "是" : "否";
+    }
+
+    function formatNumber(value) {
+      return Number.isFinite(value) ? value.toFixed(2) : "-";
+    }
+
+    function formatPnl(value) {
+      return Number.isFinite(value) ? money.format(value) : "-";
+    }
+
+    function setText(selector, value) {
+      document.querySelector(selector).textContent = value;
+    }
+
+    function setMoney(selector, value) {
+      const element = document.querySelector(selector);
+      element.textContent = money.format(value);
+      element.classList.toggle("profit", value > 0);
+      element.classList.toggle("loss", value < 0);
+      element.classList.toggle("flat", value === 0);
+    }
+
+    function getPnlClass(value) {
+      if (!Number.isFinite(value)) return "";
+      if (value > 0) return "profit";
+      if (value < 0) return "loss";
+      return "flat";
+    }
+
+    function csvCell(value) {
+      const text = value == null || Number.isNaN(value) ? "" : String(value);
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
