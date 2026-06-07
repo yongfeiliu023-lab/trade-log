@@ -670,6 +670,7 @@
         <button id="exportCsv" type="button">导出 CSV</button>
         <button id="clearAll" class="danger" type="button">清空全部</button>
         <div class="reminder-status" id="reminderStatus">交易时间提醒：未开启</div>
+        <div class="reminder-status" id="marketTimeStatus">美股交易时间：读取中</div>
       </div>
     </header>
 
@@ -906,6 +907,7 @@
     const loginButton = document.querySelector("#loginButton");
     const reminderToggle = document.querySelector("#reminderToggle");
     const reminderStatus = document.querySelector("#reminderStatus");
+    const marketTimeStatus = document.querySelector("#marketTimeStatus");
     const form = document.querySelector("#tradeForm");
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
@@ -949,6 +951,7 @@
     let trades = loadTrades();
     let authSession = loadAuthSession();
     let reminderTimer = null;
+    let marketClockTimer = null;
     let reminderEnabled = localStorage.getItem(REMINDER_STORAGE_KEY) === "on";
     let lastReminderSlot = "";
 
@@ -1701,6 +1704,7 @@
 
     function logout() {
       stopMarketReminder();
+      stopMarketClock();
       clearAuthSession();
       trades = [];
       localStorage.removeItem(STORAGE_KEY);
@@ -1712,6 +1716,7 @@
       loginScreen.classList.add("hidden");
       app.classList.remove("hidden");
       setSyncStatus(authSession?.email ? `已登录：${authSession.email}` : "已登录");
+      setupMarketClock();
       setupMarketReminder();
     }
 
@@ -1830,6 +1835,17 @@
       reminderTimer = null;
     }
 
+    function setupMarketClock() {
+      stopMarketClock();
+      updateMarketTimeStatus();
+      marketClockTimer = setInterval(updateMarketTimeStatus, 30000);
+    }
+
+    function stopMarketClock() {
+      if (marketClockTimer) clearInterval(marketClockTimer);
+      marketClockTimer = null;
+    }
+
     function checkMarketReminder() {
       updateReminderStatus();
       if (!reminderEnabled || Notification.permission !== "granted") return;
@@ -1860,6 +1876,7 @@
 
     function updateReminderStatus(message = "") {
       reminderToggle.textContent = reminderEnabled ? "关闭 30 分钟提醒" : "开启 30 分钟提醒";
+      updateMarketTimeStatus();
 
       if (!reminderEnabled) {
         reminderStatus.textContent = `交易时间提醒：${message || "未开启"}`;
@@ -1879,6 +1896,13 @@
       const et = getEasternTimeParts(new Date());
       const activeText = isRegularMarketTime(et) ? "交易时段内" : "等待下个交易时段";
       reminderStatus.textContent = `交易时间提醒：已开启，${activeText}，下一次 ${getNextReminderLabel(et)}`;
+    }
+
+    function updateMarketTimeStatus() {
+      const et = getEasternTimeParts(new Date());
+      const progress = getReminderProgress(et);
+      const marketState = isRegularMarketTime(et) ? "交易中" : getMarketStateLabel(et);
+      marketTimeStatus.textContent = `美东时间 ${et.month}/${et.day} ${formatEtTime(et.hour * 60 + et.minute)} ET，${marketState}，今日提醒 ${progress.completed}/${progress.total}，剩余 ${progress.remaining} 次`;
     }
 
     function getEasternTimeParts(date) {
@@ -1907,6 +1931,33 @@
       if (["Sat", "Sun"].includes(et.weekday)) return false;
       const minutes = et.hour * 60 + et.minute;
       return minutes >= 570 && minutes <= 960;
+    }
+
+    function getMarketStateLabel(et) {
+      if (["Sat", "Sun"].includes(et.weekday)) return "非交易日";
+      const minutes = et.hour * 60 + et.minute;
+      if (minutes < 570) return "盘前";
+      if (minutes > 960) return "已收盘";
+      return "交易中";
+    }
+
+    function getReminderProgress(et) {
+      const total = 14;
+      if (["Sat", "Sun"].includes(et.weekday)) {
+        return { completed: 0, remaining: total, total };
+      }
+
+      const minutes = et.hour * 60 + et.minute;
+      if (minutes < 570) {
+        return { completed: 0, remaining: total, total };
+      }
+
+      if (minutes >= 960) {
+        return { completed: total, remaining: 0, total };
+      }
+
+      const completed = Math.min(total, Math.floor((minutes - 570) / 30) + 1);
+      return { completed, remaining: total - completed, total };
     }
 
     function getNextReminderLabel(et) {
