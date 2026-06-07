@@ -113,6 +113,28 @@
       justify-content: flex-end;
     }
 
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .tab-button {
+      background: var(--panel);
+      color: var(--muted);
+    }
+
+    .tab-button.active {
+      color: var(--text);
+      border-color: #2f73d9;
+      background: #1f64c8;
+    }
+
+    .view.hidden {
+      display: none !important;
+    }
+
     .stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -390,7 +412,8 @@
 
       .stats,
       form,
-      .checks {
+      .checks,
+      .tabs {
         grid-template-columns: 1fr;
       }
 
@@ -443,18 +466,13 @@
       </div>
     </header>
 
-    <section class="stats" aria-label="交易统计">
-      <div class="card"><div class="label">总交易次数</div><div class="value" id="totalTrades">0</div></div>
-      <div class="card"><div class="label">胜率</div><div class="value" id="winRate">0%</div></div>
-      <div class="card"><div class="label">纪律执行率</div><div class="value" id="disciplineRate">0%</div></div>
-      <div class="card"><div class="label">总盈亏</div><div class="value" id="totalPnl">$0.00</div></div>
-      <div class="card"><div class="label">平均盈利</div><div class="value" id="avgWin">$0.00</div></div>
-      <div class="card"><div class="label">平均亏损</div><div class="value" id="avgLoss">$0.00</div></div>
-      <div class="card"><div class="label">盈亏比</div><div class="value" id="rewardRisk">0.00</div></div>
-      <div class="card"><div class="label">连续亏损次数</div><div class="value" id="lossStreak">0</div></div>
-    </section>
+    <nav class="tabs" aria-label="主功能">
+      <button class="tab-button active" type="button" data-tab="trade">交易</button>
+      <button class="tab-button" type="button" data-tab="analysis">分析</button>
+      <button class="tab-button" type="button" data-tab="details">交易记录详情</button>
+    </nav>
 
-    <section class="section">
+    <section class="section view" id="tradeView">
       <h2>新增交易记录</h2>
       <form id="tradeForm">
         <div class="field">
@@ -568,7 +586,20 @@
       </form>
     </section>
 
-    <section class="section">
+    <section class="view hidden" id="analysisView">
+      <div class="stats" aria-label="交易统计">
+        <div class="card"><div class="label">总交易次数</div><div class="value" id="totalTrades">0</div></div>
+        <div class="card"><div class="label">胜率</div><div class="value" id="winRate">0%</div></div>
+        <div class="card"><div class="label">纪律执行率</div><div class="value" id="disciplineRate">0%</div></div>
+        <div class="card"><div class="label">总盈亏</div><div class="value" id="totalPnl">$0.00</div></div>
+        <div class="card"><div class="label">平均盈利</div><div class="value" id="avgWin">$0.00</div></div>
+        <div class="card"><div class="label">平均亏损</div><div class="value" id="avgLoss">$0.00</div></div>
+        <div class="card"><div class="label">盈亏比</div><div class="value" id="rewardRisk">0.00</div></div>
+        <div class="card"><div class="label">连续亏损次数</div><div class="value" id="lossStreak">0</div></div>
+      </div>
+    </section>
+
+    <section class="section view hidden" id="detailsView">
       <h2>交易记录</h2>
       <div class="table-wrap">
         <table>
@@ -617,6 +648,12 @@
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
     const syncStatus = document.querySelector("#syncStatus");
+    const tabButtons = [...document.querySelectorAll("[data-tab]")];
+    const views = {
+      trade: document.querySelector("#tradeView"),
+      analysis: document.querySelector("#analysisView"),
+      details: document.querySelector("#detailsView")
+    };
     const entryPrice = document.querySelector("#entryPrice");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
     const stopLossPrice = document.querySelector("#stopLossPrice");
@@ -651,6 +688,9 @@
     });
 
     document.querySelector("#logoutButton").addEventListener("click", logout);
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => switchTab(button.dataset.tab));
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -706,6 +746,7 @@
       updateApprovalState();
       updateAutoPrices();
       updatePnlPreview();
+      switchTab("details");
     });
 
     tableBody.addEventListener("click", async (event) => {
@@ -802,6 +843,15 @@
     function render() {
       renderStats();
       renderTable();
+    }
+
+    function switchTab(tab) {
+      Object.entries(views).forEach(([name, view]) => {
+        view.classList.toggle("hidden", name !== tab);
+      });
+      tabButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === tab);
+      });
     }
 
     function renderStats() {
