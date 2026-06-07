@@ -569,6 +569,35 @@
       text-align: right;
     }
 
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 20;
+      width: min(520px, calc(100% - 28px));
+      padding: 13px 14px;
+      background: #101925;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      transform: translate(-50%, 140%);
+      transition: transform 0.24s ease;
+    }
+
+    .toast.show {
+      transform: translate(-50%, 0);
+    }
+
+    .toast-title {
+      font-weight: 760;
+      margin-bottom: 4px;
+    }
+
+    .toast-body {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .tiny {
       font-size: 12px;
       color: var(--muted);
@@ -893,6 +922,11 @@
     </section>
   </main>
 
+  <div class="toast" id="reminderToast" role="status" aria-live="polite">
+    <div class="toast-title" id="reminderToastTitle">交易纪律提醒</div>
+    <div class="toast-body" id="reminderToastBody">先检查纪律，再决定是否交易。</div>
+  </div>
+
   <script>
     const STORAGE_KEY = "trade-discipline-log-v1";
     const AUTH_STORAGE_KEY = "trade-discipline-auth-v1";
@@ -908,6 +942,9 @@
     const reminderToggle = document.querySelector("#reminderToggle");
     const reminderStatus = document.querySelector("#reminderStatus");
     const marketTimeStatus = document.querySelector("#marketTimeStatus");
+    const reminderToast = document.querySelector("#reminderToast");
+    const reminderToastTitle = document.querySelector("#reminderToastTitle");
+    const reminderToastBody = document.querySelector("#reminderToastBody");
     const form = document.querySelector("#tradeForm");
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
@@ -1801,25 +1838,14 @@
         return;
       }
 
-      if (!("Notification" in window)) {
-        alert("当前浏览器不支持系统通知，无法开启交易时间提醒。");
-        return;
-      }
-
-      if (Notification.permission === "default") {
+      if ("Notification" in window && Notification.permission === "default") {
         await Notification.requestPermission();
-      }
-
-      if (Notification.permission !== "granted") {
-        alert("通知权限未开启。请在浏览器设置里允许此网站发送通知。");
-        updateReminderStatus("通知权限未开启");
-        return;
       }
 
       reminderEnabled = true;
       localStorage.setItem(REMINDER_STORAGE_KEY, "on");
       setupMarketReminder();
-      sendMarketReminder("交易时间提醒已开启", "美股常规交易时段内，每 30 分钟提醒一次。");
+      sendMarketReminder("交易时间提醒已开启", getReminderModeText());
     }
 
     function setupMarketReminder() {
@@ -1848,7 +1874,7 @@
 
     function checkMarketReminder() {
       updateReminderStatus();
-      if (!reminderEnabled || Notification.permission !== "granted") return;
+      if (!reminderEnabled) return;
 
       const now = new Date();
       const et = getEasternTimeParts(now);
@@ -1866,12 +1892,17 @@
     }
 
     function sendMarketReminder(title, body) {
-      if (!("Notification" in window) || Notification.permission !== "granted") return;
-      new Notification(title, {
-        body,
-        tag: "trade-discipline-reminder",
-        renotify: true
-      });
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body,
+          tag: "trade-discipline-reminder",
+          renotify: true
+        });
+      }
+
+      showInPageReminder(title, body);
+      playReminderCue();
+      if ("vibrate" in navigator) navigator.vibrate([160, 80, 160]);
     }
 
     function updateReminderStatus(message = "") {
@@ -1883,19 +1914,49 @@
         return;
       }
 
-      if (!("Notification" in window)) {
-        reminderStatus.textContent = "交易时间提醒：当前浏览器不支持通知";
-        return;
-      }
-
-      if (Notification.permission === "denied") {
-        reminderStatus.textContent = "交易时间提醒：通知权限被拒绝";
-        return;
-      }
-
       const et = getEasternTimeParts(new Date());
       const activeText = isRegularMarketTime(et) ? "交易时段内" : "等待下个交易时段";
-      reminderStatus.textContent = `交易时间提醒：已开启，${activeText}，下一次 ${getNextReminderLabel(et)}`;
+      reminderStatus.textContent = `交易时间提醒：已开启（${getReminderModeLabel()}），${activeText}，下一次 ${getNextReminderLabel(et)}`;
+    }
+
+    function getReminderModeLabel() {
+      if ("Notification" in window && Notification.permission === "granted") return "系统通知+页面提醒";
+      return "页面内提醒";
+    }
+
+    function getReminderModeText() {
+      if ("Notification" in window && Notification.permission === "granted") {
+        return "美股常规交易时段内，每 30 分钟发送系统通知和页面提醒。";
+      }
+      return "当前浏览器不支持或未允许系统通知，已改用页面内提醒。请保持网页打开。";
+    }
+
+    function showInPageReminder(title, body) {
+      reminderToastTitle.textContent = title;
+      reminderToastBody.textContent = body;
+      reminderToast.classList.add("show");
+      setTimeout(() => reminderToast.classList.remove("show"), 9000);
+    }
+
+    function playReminderCue() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = 660;
+        gain.gain.value = 0.04;
+        oscillator.connect(gain);
+        gain.connect(audio.destination);
+        oscillator.start();
+        setTimeout(() => {
+          oscillator.stop();
+          audio.close();
+        }, 180);
+      } catch {
+      }
     }
 
     function updateMarketTimeStatus() {
