@@ -226,6 +226,100 @@
       font-size: 13px;
     }
 
+    .risk-panel,
+    .score-panel,
+    .insight-panel {
+      padding: 14px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .risk-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .risk-panel.warn {
+      border-color: rgba(247, 201, 72, 0.62);
+      background: rgba(247, 201, 72, 0.08);
+    }
+
+    .risk-panel.danger-zone {
+      border-color: rgba(255, 107, 107, 0.65);
+      background: rgba(255, 107, 107, 0.09);
+    }
+
+    .risk-title-row,
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .risk-title,
+    .score-title {
+      font-weight: 760;
+    }
+
+    .risk-level,
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 7px;
+      background: rgba(97, 165, 255, 0.12);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .risk-list,
+    .insight-list,
+    .score-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .score-number {
+      font-size: 42px;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .insight-card {
+      min-height: 92px;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .insight-metric {
+      margin-top: 5px;
+      font-size: 22px;
+      font-weight: 760;
+    }
+
     .section {
       padding: 18px;
       margin-bottom: 18px;
@@ -480,6 +574,8 @@
       .stats,
       form,
       .checks,
+      .analysis-grid,
+      .insight-grid,
       .tabs {
         grid-template-columns: 1fr;
       }
@@ -642,6 +738,18 @@
         </div>
 
         <div class="field full">
+          <div class="risk-panel" id="riskPanel">
+            <div class="risk-title-row">
+              <span class="risk-title" id="riskTitle">交易前风险检查</span>
+              <span class="risk-level" id="riskLevel">低风险</span>
+            </div>
+            <ul class="risk-list" id="riskList">
+              <li>等待交易条件输入。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="field full">
           <label for="notes">备注</label>
           <textarea id="notes" name="notes" placeholder="记录入场理由、复盘观察、情绪触发点等"></textarea>
         </div>
@@ -680,6 +788,25 @@
           <canvas id="disciplineChart" aria-label="纪律执行率、胜率与盈亏比关系图"></canvas>
         </div>
         <p class="chart-summary" id="chartSummary">暂无足够交易数据。</p>
+      </div>
+      <div class="analysis-grid">
+        <div class="score-panel">
+          <div class="score-row">
+            <div>
+              <h2>今日纪律评分</h2>
+              <div class="tiny" id="scoreDateLabel">按当前选择日期统计</div>
+            </div>
+            <span class="score-badge" id="scoreBadge">待评估</span>
+          </div>
+          <div class="score-number" id="dailyScore">100</div>
+          <ul class="score-list" id="scoreReasons">
+            <li>暂无今日记录，默认满分等待交易。</li>
+          </ul>
+        </div>
+        <div class="insight-panel">
+          <h2>行为复盘</h2>
+          <div class="insight-grid" id="behaviorInsights"></div>
+        </div>
       </div>
     </section>
 
@@ -740,6 +867,19 @@
     };
     const disciplineChart = document.querySelector("#disciplineChart");
     const chartSummary = document.querySelector("#chartSummary");
+    const riskPanel = document.querySelector("#riskPanel");
+    const riskTitle = document.querySelector("#riskTitle");
+    const riskLevel = document.querySelector("#riskLevel");
+    const riskList = document.querySelector("#riskList");
+    const dailyScore = document.querySelector("#dailyScore");
+    const scoreBadge = document.querySelector("#scoreBadge");
+    const scoreDateLabel = document.querySelector("#scoreDateLabel");
+    const scoreReasons = document.querySelector("#scoreReasons");
+    const behaviorInsights = document.querySelector("#behaviorInsights");
+    const dateInput = document.querySelector("#date");
+    const resultInput = document.querySelector("#result");
+    const followedRulesInput = document.querySelector("#followedRules");
+    const emotionInput = document.querySelector("#emotion");
     const entryPrice = document.querySelector("#entryPrice");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
     const stopLossPrice = document.querySelector("#stopLossPrice");
@@ -762,7 +902,7 @@
       minimumFractionDigits: 2
     });
 
-    document.querySelector("#date").valueAsDate = new Date();
+    dateInput.valueAsDate = new Date();
     updateApprovalState();
     render();
     boot();
@@ -785,6 +925,12 @@
 
       if (getTradeCountForDate(tradeDate) >= 3) {
         const shouldContinue = confirm("今天已经记录了 3 笔交易。你确定要进行第 4 笔交易吗？");
+        if (!shouldContinue) return;
+      }
+
+      const risk = getPreTradeRisk();
+      if (risk.level === "high") {
+        const shouldContinue = confirm(`当前风险过高，建议停止交易。\n\n${risk.reasons.join("\n")}\n\n仍然保存这笔交易吗？`);
         if (!shouldContinue) return;
       }
 
@@ -827,11 +973,12 @@
       }
 
       form.reset();
-      document.querySelector("#date").valueAsDate = new Date();
+      dateInput.valueAsDate = new Date();
       document.querySelector("#symbol").value = "QQQ";
       updateApprovalState();
       updateAutoPrices();
       updatePnlPreview();
+      updateRiskPanel();
       switchTab("details");
     });
 
@@ -925,6 +1072,9 @@
     entryPrice.addEventListener("input", updateAutoPrices);
     positionSize.addEventListener("change", confirmFullPosition);
     signalInputs.forEach((input) => input.addEventListener("change", updateApprovalState));
+    [dateInput, resultInput, followedRulesInput, emotionInput, positionSize].forEach((input) => {
+      input.addEventListener("change", updateRiskPanel);
+    });
     window.addEventListener("resize", () => {
       if (!views.analysis.classList.contains("hidden")) renderAnalysisChart();
     });
@@ -933,6 +1083,9 @@
       renderStats();
       renderTable();
       renderAnalysisChart();
+      renderDailyScore();
+      renderBehaviorInsights();
+      updateRiskPanel();
     }
 
     function switchTab(tab) {
@@ -985,6 +1138,171 @@
       ]);
 
       chartSummary.textContent = getChartSummary(disciplineValue, winValue, rewardRisk, closed.length);
+    }
+
+    function updateRiskPanel() {
+      const risk = getPreTradeRisk();
+      riskPanel.classList.toggle("warn", risk.level === "medium");
+      riskPanel.classList.toggle("danger-zone", risk.level === "high");
+      riskTitle.textContent = risk.level === "high" ? "建议停止交易" : "交易前风险检查";
+      riskLevel.textContent = risk.label;
+      riskLevel.style.color = risk.level === "high" ? "var(--red)" : risk.level === "medium" ? "var(--yellow)" : "var(--green)";
+      riskList.innerHTML = risk.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("");
+    }
+
+    function getPreTradeRisk() {
+      const date = dateInput.value;
+      const dayTrades = getTradesForDate(date);
+      const dayClosed = dayTrades.filter((trade) => Number.isFinite(getPnl(trade)));
+      const dayLosses = dayClosed.filter((trade) => getPnl(trade) < 0).length;
+      const reasons = [];
+      let score = 0;
+
+      if (!isApproved()) {
+        score += 2;
+        reasons.push("三项交易信号尚未全部 approve。");
+      }
+
+      if (emotionInput.value === "想翻本") {
+        score += 3;
+        reasons.push("当前情绪是想翻本，容易扩大亏损。");
+      } else if (["贪婪", "恐惧"].includes(emotionInput.value)) {
+        score += 2;
+        reasons.push(`当前情绪是${emotionInput.value}，需要降低冲动操作。`);
+      } else if (emotionInput.value === "紧张") {
+        score += 1;
+        reasons.push("当前情绪紧张，建议减小仓位或等待更清晰信号。");
+      }
+
+      if (positionSize.value === "全仓") {
+        score += 3;
+        reasons.push("仓位选择为全仓，单笔风险过高。");
+      }
+
+      if (dayTrades.length >= 3) {
+        score += 2;
+        reasons.push("同日已记录 3 笔或以上交易，继续交易容易过度交易。");
+      }
+
+      if (dayLosses >= 2) {
+        score += 3;
+        reasons.push("今日已出现 2 笔或以上亏损，建议停止交易并复盘。");
+      }
+
+      if (followedRulesInput.value === "否") {
+        score += 2;
+        reasons.push("本笔计划未按规则执行。");
+      }
+
+      if (!reasons.length) {
+        reasons.push("当前没有明显风险触发项，仍需按计划执行。");
+      }
+
+      if (score >= 5) return { level: "high", label: "高风险", reasons };
+      if (score >= 2) return { level: "medium", label: "中风险", reasons };
+      return { level: "low", label: "低风险", reasons };
+    }
+
+    function renderDailyScore() {
+      const date = dateInput.value;
+      const dayTrades = getTradesForDate(date);
+      const score = getDailyDisciplineScore(dayTrades);
+
+      dailyScore.textContent = score.value;
+      scoreBadge.textContent = score.label;
+      scoreBadge.style.color = score.value >= 80 ? "var(--green)" : score.value >= 60 ? "var(--yellow)" : "var(--red)";
+      scoreDateLabel.textContent = `${date || "当前日期"} 的纪律表现`;
+      scoreReasons.innerHTML = score.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("");
+    }
+
+    function getDailyDisciplineScore(dayTrades) {
+      if (!dayTrades.length) {
+        return { value: 100, label: "待交易", reasons: ["暂无今日记录，默认满分等待交易。"] };
+      }
+
+      let score = 100;
+      const reasons = [];
+      const losses = dayTrades.filter((trade) => Number.isFinite(getPnl(trade)) && getPnl(trade) < 0).length;
+      const ruleBreaks = dayTrades.filter((trade) => trade.followedRules === "否").length;
+      const fullPositions = dayTrades.filter((trade) => trade.positionSize === "全仓").length;
+      const movedStops = dayTrades.filter((trade) => trade.movedStop).length;
+      const revengeTrades = dayTrades.filter((trade) => trade.emotion === "想翻本").length;
+      const unstableEmotionTrades = dayTrades.filter((trade) => ["紧张", "贪婪", "恐惧", "想翻本"].includes(trade.emotion)).length;
+
+      if (ruleBreaks) {
+        const penalty = ruleBreaks * 18;
+        score -= penalty;
+        reasons.push(`未按规则执行 ${ruleBreaks} 笔，-${penalty}。`);
+      }
+
+      if (dayTrades.length > 3) {
+        const penalty = (dayTrades.length - 3) * 12;
+        score -= penalty;
+        reasons.push(`同日超过 3 笔交易，-${penalty}。`);
+      }
+
+      if (losses >= 2) {
+        score -= 15;
+        reasons.push("今日亏损 2 笔或以上，-15。");
+      }
+
+      if (fullPositions) {
+        const penalty = fullPositions * 15;
+        score -= penalty;
+        reasons.push(`全仓 ${fullPositions} 笔，-${penalty}。`);
+      }
+
+      if (movedStops) {
+        const penalty = movedStops * 10;
+        score -= penalty;
+        reasons.push(`移动止损 ${movedStops} 笔，-${penalty}。`);
+      }
+
+      if (revengeTrades) {
+        const penalty = revengeTrades * 15;
+        score -= penalty;
+        reasons.push(`想翻本情绪 ${revengeTrades} 笔，-${penalty}。`);
+      } else if (unstableEmotionTrades) {
+        const penalty = unstableEmotionTrades * 6;
+        score -= penalty;
+        reasons.push(`非平静情绪 ${unstableEmotionTrades} 笔，-${penalty}。`);
+      }
+
+      const value = Math.max(0, Math.min(100, score));
+      if (!reasons.length) reasons.push("今日记录暂未触发纪律扣分项。");
+      const label = value >= 80 ? "纪律良好" : value >= 60 ? "需要警惕" : "建议停手复盘";
+      return { value, label, reasons };
+    }
+
+    function renderBehaviorInsights() {
+      const insights = [
+        buildBehaviorInsight("提前卖出", (trade) => trade.soldEarly),
+        buildBehaviorInsight("移动止损", (trade) => trade.movedStop),
+        buildBehaviorInsight("加仓", (trade) => trade.addedPosition),
+        buildBehaviorInsight("非平静情绪", (trade) => ["紧张", "贪婪", "恐惧", "想翻本"].includes(trade.emotion))
+      ];
+
+      behaviorInsights.innerHTML = insights.map((insight) => `
+        <div class="insight-card">
+          <div class="label">${escapeHtml(insight.label)}</div>
+          <div class="insight-metric ${insight.pnlClass}">${escapeHtml(insight.metric)}</div>
+          <div class="tiny">${escapeHtml(insight.detail)}</div>
+        </div>
+      `).join("");
+    }
+
+    function buildBehaviorInsight(label, predicate) {
+      const matched = trades.filter(predicate);
+      const closed = matched.filter((trade) => Number.isFinite(getPnl(trade)));
+      const totalPnl = sum(closed.map(getPnl));
+      const wins = closed.filter((trade) => getPnl(trade) > 0).length;
+      const winRate = closed.length ? percent(wins / closed.length) : "0.0%";
+      return {
+        label,
+        metric: matched.length ? `${matched.length} 笔` : "0 笔",
+        pnlClass: getPnlClass(totalPnl),
+        detail: matched.length ? `已平仓 ${closed.length} 笔，胜率 ${winRate}，盈亏 ${formatPnl(totalPnl)}` : "暂无触发记录。"
+      };
     }
 
     function drawMetricChart(metrics) {
@@ -1134,6 +1452,7 @@
         input.disabled = !approved;
       });
       if (approved) updateAutoPrices();
+      updateRiskPanel();
     }
 
     function confirmFullPosition() {
@@ -1173,6 +1492,10 @@
 
     function getTradeCountForDate(date) {
       return trades.filter((trade) => trade.date === date).length;
+    }
+
+    function getTradesForDate(date) {
+      return trades.filter((trade) => trade.date === date);
     }
 
     function isApproved() {
