@@ -562,6 +562,13 @@
       color: var(--muted);
     }
 
+    .reminder-status {
+      flex-basis: 100%;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
     .tiny {
       font-size: 12px;
       color: var(--muted);
@@ -583,6 +590,10 @@
 
       .header-actions {
         justify-content: flex-start;
+      }
+
+      .reminder-status {
+        text-align: left;
       }
 
       .stats {
@@ -654,9 +665,11 @@
         <div class="sync-status" id="syncStatus">同步状态：准备连接 Supabase</div>
       </div>
       <div class="header-actions">
+        <button id="reminderToggle" type="button">开启 30 分钟提醒</button>
         <button id="logoutButton" type="button">退出登录</button>
         <button id="exportCsv" type="button">导出 CSV</button>
         <button id="clearAll" class="danger" type="button">清空全部</button>
+        <div class="reminder-status" id="reminderStatus">交易时间提醒：未开启</div>
       </div>
     </header>
 
@@ -882,6 +895,7 @@
   <script>
     const STORAGE_KEY = "trade-discipline-log-v1";
     const AUTH_STORAGE_KEY = "trade-discipline-auth-v1";
+    const REMINDER_STORAGE_KEY = "trade-discipline-reminder-v1";
     const SUPABASE_URL = "https://thakeglzlctbpxqfyqfv.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYWtlZ2x6bGN0YnB4cWZ5cWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3Nzk5NDMsImV4cCI6MjA5NjM1NTk0M30.gypmu5KomL4frQ8_cMURj803IrL2IPegni5XvKxXHNw";
     const SUPABASE_TABLE = "trades";
@@ -890,6 +904,8 @@
     const loginForm = document.querySelector("#loginForm");
     const loginError = document.querySelector("#loginError");
     const loginButton = document.querySelector("#loginButton");
+    const reminderToggle = document.querySelector("#reminderToggle");
+    const reminderStatus = document.querySelector("#reminderStatus");
     const form = document.querySelector("#tradeForm");
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
@@ -932,6 +948,9 @@
 
     let trades = loadTrades();
     let authSession = loadAuthSession();
+    let reminderTimer = null;
+    let reminderEnabled = localStorage.getItem(REMINDER_STORAGE_KEY) === "on";
+    let lastReminderSlot = "";
 
     const money = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -951,6 +970,7 @@
     });
 
     document.querySelector("#logoutButton").addEventListener("click", logout);
+    reminderToggle.addEventListener("click", toggleMarketReminder);
     tabButtons.forEach((button) => {
       button.addEventListener("click", () => switchTab(button.dataset.tab));
     });
@@ -1680,6 +1700,7 @@
     }
 
     function logout() {
+      stopMarketReminder();
       clearAuthSession();
       trades = [];
       localStorage.removeItem(STORAGE_KEY);
@@ -1691,6 +1712,7 @@
       loginScreen.classList.add("hidden");
       app.classList.remove("hidden");
       setSyncStatus(authSession?.email ? `已登录：${authSession.email}` : "已登录");
+      setupMarketReminder();
     }
 
     function showLogin(message = "") {
@@ -1763,6 +1785,160 @@
     function clearAuthSession() {
       authSession = null;
       localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+
+    async function toggleMarketReminder() {
+      if (reminderEnabled) {
+        reminderEnabled = false;
+        localStorage.setItem(REMINDER_STORAGE_KEY, "off");
+        stopMarketReminder();
+        updateReminderStatus();
+        return;
+      }
+
+      if (!("Notification" in window)) {
+        alert("当前浏览器不支持系统通知，无法开启交易时间提醒。");
+        return;
+      }
+
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+
+      if (Notification.permission !== "granted") {
+        alert("通知权限未开启。请在浏览器设置里允许此网站发送通知。");
+        updateReminderStatus("通知权限未开启");
+        return;
+      }
+
+      reminderEnabled = true;
+      localStorage.setItem(REMINDER_STORAGE_KEY, "on");
+      setupMarketReminder();
+      sendMarketReminder("交易时间提醒已开启", "美股常规交易时段内，每 30 分钟提醒一次。");
+    }
+
+    function setupMarketReminder() {
+      stopMarketReminder();
+      updateReminderStatus();
+      if (!reminderEnabled) return;
+      checkMarketReminder();
+      reminderTimer = setInterval(checkMarketReminder, 30000);
+    }
+
+    function stopMarketReminder() {
+      if (reminderTimer) clearInterval(reminderTimer);
+      reminderTimer = null;
+    }
+
+    function checkMarketReminder() {
+      updateReminderStatus();
+      if (!reminderEnabled || Notification.permission !== "granted") return;
+
+      const now = new Date();
+      const et = getEasternTimeParts(now);
+      if (!isRegularMarketTime(et)) return;
+      if (et.minute % 30 !== 0) return;
+
+      const slot = `${et.year}-${et.month}-${et.day}-${et.hour}-${et.minute}`;
+      if (slot === lastReminderSlot) return;
+      lastReminderSlot = slot;
+
+      sendMarketReminder(
+        "交易纪律提醒",
+        "先看纪律检查：是否 approve、是否想翻本、是否过度交易、是否该停手。"
+      );
+    }
+
+    function sendMarketReminder(title, body) {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      new Notification(title, {
+        body,
+        tag: "trade-discipline-reminder",
+        renotify: true
+      });
+    }
+
+    function updateReminderStatus(message = "") {
+      reminderToggle.textContent = reminderEnabled ? "关闭 30 分钟提醒" : "开启 30 分钟提醒";
+
+      if (!reminderEnabled) {
+        reminderStatus.textContent = `交易时间提醒：${message || "未开启"}`;
+        return;
+      }
+
+      if (!("Notification" in window)) {
+        reminderStatus.textContent = "交易时间提醒：当前浏览器不支持通知";
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        reminderStatus.textContent = "交易时间提醒：通知权限被拒绝";
+        return;
+      }
+
+      const et = getEasternTimeParts(new Date());
+      const activeText = isRegularMarketTime(et) ? "交易时段内" : "等待下个交易时段";
+      reminderStatus.textContent = `交易时间提醒：已开启，${activeText}，下一次 ${getNextReminderLabel(et)}`;
+    }
+
+    function getEasternTimeParts(date) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(date);
+      const data = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      return {
+        year: data.year,
+        month: data.month,
+        day: data.day,
+        weekday: data.weekday,
+        hour: Number(data.hour),
+        minute: Number(data.minute)
+      };
+    }
+
+    function isRegularMarketTime(et) {
+      if (["Sat", "Sun"].includes(et.weekday)) return false;
+      const minutes = et.hour * 60 + et.minute;
+      return minutes >= 570 && minutes <= 960;
+    }
+
+    function getNextReminderLabel(et) {
+      const minutes = et.hour * 60 + et.minute;
+      const isWeekday = !["Sat", "Sun"].includes(et.weekday);
+
+      if (isWeekday && minutes < 570) {
+        return `${et.month}/${et.day} 09:30 ET`;
+      }
+
+      if (isWeekday && minutes <= 960) {
+        const nextSlot = Math.min(Math.ceil((minutes + 1) / 30) * 30, 960);
+        return `${et.month}/${et.day} ${formatEtTime(nextSlot)} ET`;
+      }
+
+      return `${getNextMarketDayLabel()} 09:30 ET`;
+    }
+
+    function getNextMarketDayLabel() {
+      for (let offset = 1; offset <= 7; offset += 1) {
+        const candidate = getEasternTimeParts(new Date(Date.now() + offset * 86400000));
+        if (!["Sat", "Sun"].includes(candidate.weekday)) {
+          return `${candidate.month}/${candidate.day}`;
+        }
+      }
+      return "下个交易日";
+    }
+
+    function formatEtTime(totalMinutes) {
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
     }
 
     async function syncFromSupabase() {
