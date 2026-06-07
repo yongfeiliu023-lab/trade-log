@@ -167,6 +167,65 @@
       overflow-wrap: anywhere;
     }
 
+    .chart-panel {
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .chart-header h2 {
+      margin-bottom: 4px;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 260px;
+    }
+
+    #disciplineChart {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .chart-summary {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .section {
       padding: 18px;
       margin-bottom: 18px;
@@ -391,6 +450,14 @@
         flex-direction: column;
       }
 
+      .chart-header {
+        flex-direction: column;
+      }
+
+      .chart-legend {
+        justify-content: flex-start;
+      }
+
       .header-actions {
         justify-content: flex-start;
       }
@@ -597,6 +664,23 @@
         <div class="card"><div class="label">盈亏比</div><div class="value" id="rewardRisk">0.00</div></div>
         <div class="card"><div class="label">连续亏损次数</div><div class="value" id="lossStreak">0</div></div>
       </div>
+      <div class="chart-panel">
+        <div class="chart-header">
+          <div>
+            <h2>纪律、胜率、盈亏比关系</h2>
+            <div class="tiny">盈亏比按 0-3R 映射到 0-100%，用于和百分比指标放在同一张图里比较。</div>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#61a5ff"></span>纪律执行率</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#32d583"></span>胜率</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#f7c948"></span>盈亏比</span>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="disciplineChart" aria-label="纪律执行率、胜率与盈亏比关系图"></canvas>
+        </div>
+        <p class="chart-summary" id="chartSummary">暂无足够交易数据。</p>
+      </div>
     </section>
 
     <section class="section view hidden" id="detailsView">
@@ -654,6 +738,8 @@
       analysis: document.querySelector("#analysisView"),
       details: document.querySelector("#detailsView")
     };
+    const disciplineChart = document.querySelector("#disciplineChart");
+    const chartSummary = document.querySelector("#chartSummary");
     const entryPrice = document.querySelector("#entryPrice");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
     const stopLossPrice = document.querySelector("#stopLossPrice");
@@ -839,10 +925,14 @@
     entryPrice.addEventListener("input", updateAutoPrices);
     positionSize.addEventListener("change", confirmFullPosition);
     signalInputs.forEach((input) => input.addEventListener("change", updateApprovalState));
+    window.addEventListener("resize", () => {
+      if (!views.analysis.classList.contains("hidden")) renderAnalysisChart();
+    });
 
     function render() {
       renderStats();
       renderTable();
+      renderAnalysisChart();
     }
 
     function switchTab(tab) {
@@ -852,6 +942,7 @@
       tabButtons.forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === tab);
       });
+      if (tab === "analysis") renderAnalysisChart();
     }
 
     function renderStats() {
@@ -872,6 +963,134 @@
       setMoney("#avgLoss", avgLoss);
       setText("#rewardRisk", rewardRisk.toFixed(2));
       setText("#lossStreak", getCurrentLossStreak());
+    }
+
+    function renderAnalysisChart() {
+      if (!disciplineChart) return;
+
+      const closed = trades.filter((trade) => Number.isFinite(getPnl(trade)));
+      const wins = closed.filter((trade) => getPnl(trade) > 0);
+      const losses = closed.filter((trade) => getPnl(trade) < 0);
+      const avgWin = wins.length ? sum(wins.map(getPnl)) / wins.length : 0;
+      const avgLoss = losses.length ? sum(losses.map(getPnl)) / losses.length : 0;
+      const rewardRisk = avgLoss < 0 ? avgWin / Math.abs(avgLoss) : 0;
+      const disciplineValue = trades.length ? trades.filter((trade) => trade.followedRules === "是").length / trades.length : 0;
+      const winValue = closed.length ? wins.length / closed.length : 0;
+      const rewardRiskValue = Math.min(rewardRisk / 3, 1);
+
+      drawMetricChart([
+        { label: "纪律", value: disciplineValue, display: percent(disciplineValue), color: "#61a5ff" },
+        { label: "胜率", value: winValue, display: percent(winValue), color: "#32d583" },
+        { label: "盈亏比", value: rewardRiskValue, display: `${rewardRisk.toFixed(2)}R`, color: "#f7c948" }
+      ]);
+
+      chartSummary.textContent = getChartSummary(disciplineValue, winValue, rewardRisk, closed.length);
+    }
+
+    function drawMetricChart(metrics) {
+      const rect = disciplineChart.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(320, Math.floor(rect.width));
+      const height = Math.max(220, Math.floor(rect.height));
+      disciplineChart.width = Math.floor(width * dpr);
+      disciplineChart.height = Math.floor(height * dpr);
+
+      const ctx = disciplineChart.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      const pad = { top: 24, right: 24, bottom: 42, left: 42 };
+      const chartWidth = width - pad.left - pad.right;
+      const chartHeight = height - pad.top - pad.bottom;
+      const baseY = pad.top + chartHeight;
+
+      ctx.strokeStyle = "#263546";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#8ea0b6";
+      ctx.font = "12px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+
+      [0, 0.25, 0.5, 0.75, 1].forEach((tick) => {
+        const y = baseY - tick * chartHeight;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(width - pad.right, y);
+        ctx.stroke();
+        ctx.fillText(`${Math.round(tick * 100)}%`, pad.left - 8, y);
+      });
+
+      const step = chartWidth / metrics.length;
+      const barWidth = Math.min(78, step * 0.46);
+      const points = [];
+
+      metrics.forEach((metric, index) => {
+        const centerX = pad.left + step * index + step / 2;
+        const barHeight = metric.value * chartHeight;
+        const x = centerX - barWidth / 2;
+        const y = baseY - barHeight;
+
+        ctx.fillStyle = metric.color;
+        ctx.globalAlpha = 0.82;
+        roundRect(ctx, x, y, barWidth, barHeight, 7);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = "#e8eef6";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.font = "700 13px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+        ctx.fillText(metric.display, centerX, y - 8);
+
+        ctx.fillStyle = "#8ea0b6";
+        ctx.textBaseline = "top";
+        ctx.font = "12px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+        ctx.fillText(metric.label, centerX, baseY + 12);
+
+        points.push({ x: centerX, y, color: metric.color });
+      });
+
+      ctx.strokeStyle = "#e8eef6";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+
+      points.forEach((point) => {
+        ctx.fillStyle = point.color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#0b1117";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      const safeRadius = Math.min(radius, width / 2, Math.max(height, 0) / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + safeRadius, y);
+      ctx.lineTo(x + width - safeRadius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+      ctx.lineTo(x + width, y + height);
+      ctx.lineTo(x, y + height);
+      ctx.lineTo(x, y + safeRadius);
+      ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+      ctx.closePath();
+    }
+
+    function getChartSummary(disciplineValue, winValue, rewardRisk, closedCount) {
+      if (!trades.length) return "暂无足够交易数据。";
+      if (!closedCount) return "已有交易记录，但还没有已平仓交易，胜率和盈亏比暂时无法判断。";
+
+      const disciplineText = disciplineValue >= 0.8 ? "纪律执行率较稳" : disciplineValue >= 0.6 ? "纪律执行率中等" : "纪律执行率偏低";
+      const winText = winValue >= 0.55 ? "胜率表现较好" : winValue >= 0.4 ? "胜率处在观察区" : "胜率偏低";
+      const rrText = rewardRisk >= 1.5 ? "盈亏比有优势" : rewardRisk >= 1 ? "盈亏比基本平衡" : "盈亏比偏弱";
+      return `${disciplineText}，${winText}，${rrText}。`;
     }
 
     function renderTable() {
