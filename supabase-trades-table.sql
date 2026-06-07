@@ -13,21 +13,24 @@ alter table public.trades enable row level security;
 drop policy if exists "Allow anon read trades" on public.trades;
 drop policy if exists "Allow anon insert trades" on public.trades;
 drop policy if exists "Allow anon delete trades" on public.trades;
+drop policy if exists "Allow authenticated read trades" on public.trades;
+drop policy if exists "Allow authenticated insert trades" on public.trades;
+drop policy if exists "Allow authenticated delete trades" on public.trades;
 
-create policy "Allow anon read trades"
+create policy "Allow authenticated read trades"
 on public.trades
 for select
-to anon
+to authenticated
 using (true);
 
-create policy "Allow anon insert trades"
+create policy "Allow authenticated insert trades"
 on public.trades
 for insert
-to anon
+to authenticated
 with check (true);
 
-create policy "Allow anon delete trades"
+create policy "Allow authenticated delete trades"
 on public.trades
 for delete
-to anon
+to authenticated
 using (true);

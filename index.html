@@ -39,6 +39,37 @@
       padding: 24px 0 40px;
     }
 
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      width: min(420px, 100%);
+      padding: 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .login-card form {
+      grid-template-columns: 1fr;
+      margin-top: 18px;
+    }
+
+    .login-error {
+      display: none;
+      color: #ffd6d6;
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid rgba(255, 107, 107, 0.45);
+      border-radius: 7px;
+      padding: 10px 11px;
+      font-size: 13px;
+    }
+
     header {
       display: flex;
       align-items: flex-end;
@@ -379,7 +410,26 @@
   </style>
 </head>
 <body>
-  <main class="app">
+  <section class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <h1>交易纪律训练日志</h1>
+      <p class="subtitle">登录后同步手机和电脑上的交易记录。</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginEmail">邮箱</label>
+          <input id="loginEmail" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">密码</label>
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="login-error" id="loginError"></div>
+        <button class="primary" id="loginButton" type="submit">登录</button>
+      </form>
+    </div>
+  </section>
+
+  <main class="app hidden" id="app">
     <header>
       <div>
         <h1>交易纪律训练日志</h1>
@@ -387,6 +437,7 @@
         <div class="sync-status" id="syncStatus">同步状态：准备连接 Supabase</div>
       </div>
       <div class="header-actions">
+        <button id="logoutButton" type="button">退出登录</button>
         <button id="exportCsv" type="button">导出 CSV</button>
         <button id="clearAll" class="danger" type="button">清空全部</button>
       </div>
@@ -553,9 +604,15 @@
 
   <script>
     const STORAGE_KEY = "trade-discipline-log-v1";
+    const AUTH_STORAGE_KEY = "trade-discipline-auth-v1";
     const SUPABASE_URL = "https://thakeglzlctbpxqfyqfv.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYWtlZ2x6bGN0YnB4cWZ5cWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3Nzk5NDMsImV4cCI6MjA5NjM1NTk0M30.gypmu5KomL4frQ8_cMURj803IrL2IPegni5XvKxXHNw";
     const SUPABASE_TABLE = "trades";
+    const app = document.querySelector("#app");
+    const loginScreen = document.querySelector("#loginScreen");
+    const loginForm = document.querySelector("#loginForm");
+    const loginError = document.querySelector("#loginError");
+    const loginButton = document.querySelector("#loginButton");
     const form = document.querySelector("#tradeForm");
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
@@ -574,6 +631,7 @@
     const positionSize = document.querySelector("#positionSize");
 
     let trades = loadTrades();
+    let authSession = loadAuthSession();
 
     const money = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -584,7 +642,15 @@
     document.querySelector("#date").valueAsDate = new Date();
     updateApprovalState();
     render();
-    syncFromSupabase();
+    boot();
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(loginForm);
+      await login(data.get("email"), data.get("password"));
+    });
+
+    document.querySelector("#logoutButton").addEventListener("click", logout);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -868,6 +934,132 @@
       return streak;
     }
 
+    async function boot() {
+      if (!authSession?.accessToken) {
+        showLogin();
+        return;
+      }
+
+      try {
+        await ensureAuthSession();
+        showApp();
+        syncFromSupabase();
+      } catch (error) {
+        console.error(error);
+        clearAuthSession();
+        showLogin("登录已过期，请重新登录。");
+      }
+    }
+
+    async function login(email, password) {
+      loginButton.disabled = true;
+      setLoginError("");
+
+      try {
+        const session = await authRequest("/token?grant_type=password", {
+          email: cleanText(email),
+          password: String(password || "")
+        });
+
+        authSession = buildAuthSession(session);
+        saveAuthSession();
+        loginForm.reset();
+        showApp();
+        await syncFromSupabase();
+      } catch (error) {
+        console.error(error);
+        setLoginError("登录失败，请检查邮箱、密码或 Supabase Auth 用户设置。");
+      } finally {
+        loginButton.disabled = false;
+      }
+    }
+
+    function logout() {
+      clearAuthSession();
+      trades = [];
+      localStorage.removeItem(STORAGE_KEY);
+      render();
+      showLogin("已退出登录。");
+    }
+
+    function showApp() {
+      loginScreen.classList.add("hidden");
+      app.classList.remove("hidden");
+      setSyncStatus(authSession?.email ? `已登录：${authSession.email}` : "已登录");
+    }
+
+    function showLogin(message = "") {
+      app.classList.add("hidden");
+      loginScreen.classList.remove("hidden");
+      setLoginError(message);
+    }
+
+    function setLoginError(message) {
+      loginError.textContent = message;
+      loginError.style.display = message ? "block" : "none";
+    }
+
+    async function ensureAuthSession() {
+      if (!authSession?.accessToken) {
+        throw new Error("Not signed in");
+      }
+
+      if (Date.now() < authSession.expiresAt - 60000) {
+        return authSession;
+      }
+
+      const refreshed = await authRequest("/token?grant_type=refresh_token", {
+        refresh_token: authSession.refreshToken
+      });
+      authSession = buildAuthSession(refreshed);
+      saveAuthSession();
+      return authSession;
+    }
+
+    async function authRequest(path, body) {
+      const response = await fetch(`${SUPABASE_URL}/auth/v1${path}`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Auth request failed: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    function buildAuthSession(session) {
+      return {
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresAt: Date.now() + Number(session.expires_in || 3600) * 1000,
+        email: session.user?.email || authSession?.email || ""
+      };
+    }
+
+    function loadAuthSession() {
+      try {
+        return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function saveAuthSession() {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authSession));
+    }
+
+    function clearAuthSession() {
+      authSession = null;
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+
     async function syncFromSupabase() {
       try {
         setSyncStatus("正在从 Supabase 读取数据...");
@@ -934,11 +1126,13 @@
     }
 
     async function supabaseRequest(path, options = {}) {
+      await ensureAuthSession();
+
       const response = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${path}`, {
         method: options.method || "GET",
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${authSession.accessToken}`,
           "Content-Type": "application/json",
           ...(options.prefer ? { Prefer: options.prefer } : {})
         },
@@ -947,6 +1141,10 @@
 
       if (!response.ok) {
         const message = await response.text();
+        if (response.status === 401) {
+          clearAuthSession();
+          showLogin("登录已过期，请重新登录。");
+        }
         throw new Error(message || `Supabase request failed: ${response.status}`);
       }
 
