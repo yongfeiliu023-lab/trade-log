@@ -428,6 +428,20 @@
       border-radius: 8px;
     }
 
+    .trade-box {
+      padding: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .trade-box-title {
+      margin-bottom: 10px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 760;
+    }
+
     .approve-badge {
       display: inline-flex;
       align-items: center;
@@ -508,7 +522,7 @@
 
     table {
       width: 100%;
-      min-width: 1120px;
+      min-width: 1460px;
       border-collapse: collapse;
     }
 
@@ -738,52 +752,77 @@
         </div>
 
         <div class="field full hidden" id="tradeSetup">
-          <label>交易设置</label>
-          <div class="checks">
-            <div class="field">
-              <label for="tradeType">交易类型</label>
-              <select id="tradeType" name="tradeType" required disabled>
-                <option value="Call">Call</option>
-                <option value="Put">Put</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="entryPrice">入场价格</label>
-              <input id="entryPrice" name="entryPrice" type="number" min="0" step="0.01" required disabled>
-            </div>
-            <div class="field">
-              <label for="takeProfitPrice">止盈价格 +30%</label>
-              <input id="takeProfitPrice" name="takeProfitPrice" type="number" min="0" step="0.01" readonly disabled>
-            </div>
-            <div class="field">
-              <label for="stopLossPrice">止损价格 -30%</label>
-              <input id="stopLossPrice" name="stopLossPrice" type="number" min="0" step="0.01" readonly disabled>
-            </div>
-            <div class="field">
-              <label for="positionSize">仓位选择</label>
-              <select id="positionSize" name="positionSize" required disabled>
-                <option value="1/3">1/3</option>
-                <option value="1/2">1/2</option>
-                <option value="全仓">全仓</option>
-              </select>
+          <div class="trade-box">
+            <div class="trade-box-title">入场计划</div>
+            <div class="checks">
+              <div class="field">
+                <label for="tradeType">交易类型</label>
+                <select id="tradeType" name="tradeType" required disabled>
+                  <option value="Call">Call</option>
+                  <option value="Put">Put</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="entryPrice">入场价格</label>
+                <input id="entryPrice" name="entryPrice" type="number" min="0" step="0.01" required disabled>
+              </div>
+              <div class="field">
+                <label for="entryTime">入场时间</label>
+                <input id="entryTime" name="entryTime" type="time" disabled>
+              </div>
+              <div class="field">
+                <label for="takeProfit10Price">止盈价格 +10%</label>
+                <input id="takeProfit10Price" name="takeProfit10Price" type="number" min="0" step="0.01" readonly disabled>
+              </div>
+              <div class="field">
+                <label for="takeProfitPrice">止盈价格 +30%</label>
+                <input id="takeProfitPrice" name="takeProfitPrice" type="number" min="0" step="0.01" readonly disabled>
+              </div>
+              <div class="field">
+                <label for="takeProfit70Price">止盈价格 +70%</label>
+                <input id="takeProfit70Price" name="takeProfit70Price" type="number" min="0" step="0.01" readonly disabled>
+              </div>
+              <div class="field">
+                <label for="stopLossPrice">止损价格 -30%</label>
+                <input id="stopLossPrice" name="stopLossPrice" type="number" min="0" step="0.01" readonly disabled>
+              </div>
+              <div class="field">
+                <label for="positionSize">仓位选择</label>
+                <select id="positionSize" name="positionSize" required disabled>
+                  <option value="1/3">1/3</option>
+                  <option value="1/2">1/2</option>
+                  <option value="全仓">全仓</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="field">
-          <label for="exitPrice">实际出场价格</label>
-          <input id="exitPrice" name="exitPrice" type="number" min="0" step="0.01">
+        <div class="field full">
+          <div class="trade-box">
+            <div class="trade-box-title">出场记录</div>
+            <div class="checks">
+              <div class="field">
+                <label for="exitPrice">实际出场价格</label>
+                <input id="exitPrice" name="exitPrice" type="number" min="0" step="0.01">
+              </div>
+              <div class="field">
+                <label for="exitTime">出场时间</label>
+                <input id="exitTime" name="exitTime" type="time">
+              </div>
+              <div class="field">
+                <label for="result">结果</label>
+                <select id="result" name="result" required>
+                  <option value="未平仓">未平仓</option>
+                  <option value="止盈">止盈</option>
+                  <option value="止损">止损</option>
+                  <option value="手动平仓">手动平仓</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="field">
-          <label for="result">结果</label>
-          <select id="result" name="result" required>
-            <option value="未平仓">未平仓</option>
-            <option value="止盈">止盈</option>
-            <option value="止损">止损</option>
-            <option value="手动平仓">手动平仓</option>
-          </select>
-        </div>
         <div class="field">
           <label for="followedRules">是否按规则执行</label>
           <select id="followedRules" name="followedRules" required>
@@ -801,7 +840,6 @@
             <option value="想翻本">想翻本</option>
           </select>
         </div>
-
         <div class="field full">
           <label>行为标记</label>
           <div class="checks">
@@ -900,10 +938,15 @@
               <th>信号</th>
               <th>Approve</th>
               <th>入场</th>
-              <th>止盈</th>
+              <th>入场时间</th>
+              <th>止盈+10%</th>
+              <th>止盈+30%</th>
+              <th>止盈+70%</th>
               <th>止损</th>
               <th>仓位</th>
               <th>出场</th>
+              <th>出场时间</th>
+              <th>持仓</th>
               <th>盈亏</th>
               <th>结果</th>
               <th>规则</th>
@@ -978,9 +1021,13 @@
     const followedRulesInput = document.querySelector("#followedRules");
     const emotionInput = document.querySelector("#emotion");
     const entryPrice = document.querySelector("#entryPrice");
+    const entryTime = document.querySelector("#entryTime");
+    const takeProfit10Price = document.querySelector("#takeProfit10Price");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
+    const takeProfit70Price = document.querySelector("#takeProfit70Price");
     const stopLossPrice = document.querySelector("#stopLossPrice");
     const exitPrice = document.querySelector("#exitPrice");
+    const exitTime = document.querySelector("#exitTime");
     const pnlPreview = document.querySelector("#pnlPreview");
     const signalInputs = [...document.querySelectorAll("#signalChecks input")];
     const tradeSetup = document.querySelector("#tradeSetup");
@@ -1043,10 +1090,14 @@
         symbol: cleanText(data.get("symbol")) || "QQQ",
         tradeType: data.get("tradeType"),
         entryPrice: toNumber(data.get("entryPrice")),
+        entryTime: cleanText(data.get("entryTime")),
+        takeProfit10Price: toNumber(data.get("takeProfit10Price")),
         takeProfitPrice: toNumber(data.get("takeProfitPrice")),
+        takeProfit70Price: toNumber(data.get("takeProfit70Price")),
         stopLossPrice: toNumber(data.get("stopLossPrice")),
         positionSize: data.get("positionSize") || "1/3",
         exitPrice: toNumber(data.get("exitPrice")),
+        exitTime: cleanText(data.get("exitTime")),
         result: data.get("result"),
         followedRules: data.get("followedRules"),
         emotion: data.get("emotion"),
@@ -1131,8 +1182,8 @@
       }
 
       const headers = [
-        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "止盈价格", "止损价格",
-        "仓位选择", "实际出场价格", "盈亏", "结果", "是否按规则执行", "情绪状态",
+        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+10%", "止盈价格+30%", "止盈价格+70%", "止损价格",
+        "仓位选择", "实际出场价格", "出场时间", "持仓时间", "盈亏", "结果", "是否按规则执行", "情绪状态",
         "是否提前卖出", "是否移动止损", "是否加仓", "备注"
       ];
       const rows = trades.map((trade) => [
@@ -1144,10 +1195,15 @@
         yesNo(trade.maSignal),
         yesNo(trade.approved),
         trade.entryPrice,
+        trade.entryTime,
+        trade.takeProfit10Price,
         trade.takeProfitPrice,
+        trade.takeProfit70Price,
         trade.stopLossPrice,
         trade.positionSize || "1/3",
         trade.exitPrice,
+        trade.exitTime,
+        getHoldingDurationLabel(trade),
         getPnl(trade),
         trade.result,
         trade.followedRules,
@@ -1602,10 +1658,15 @@
             <td>${escapeHtml(getSignalsLabel(trade))}</td>
             <td>${yesNo(trade.approved)}</td>
             <td>${formatNumber(trade.entryPrice)}</td>
+            <td>${escapeHtml(trade.entryTime || "-")}</td>
+            <td>${formatNumber(trade.takeProfit10Price)}</td>
             <td>${formatNumber(trade.takeProfitPrice)}</td>
+            <td>${formatNumber(trade.takeProfit70Price)}</td>
             <td>${formatNumber(trade.stopLossPrice)}</td>
             <td>${escapeHtml(trade.positionSize || "1/3")}</td>
             <td>${formatNumber(trade.exitPrice)}</td>
+            <td>${escapeHtml(trade.exitTime || "-")}</td>
+            <td>${escapeHtml(getHoldingDurationLabel(trade))}</td>
             <td class="${pnlClass}">${formatPnl(pnl)}</td>
             <td>${escapeHtml(trade.result)}</td>
             <td>${escapeHtml(trade.followedRules)}</td>
@@ -1626,7 +1687,7 @@
       approveBadge.classList.toggle("hidden", !approved);
       approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
       saveTrade.disabled = !approved;
-      [tradeType, entryPrice, takeProfitPrice, stopLossPrice, positionSize].forEach((input) => {
+      [tradeType, entryPrice, entryTime, takeProfit10Price, takeProfitPrice, takeProfit70Price, stopLossPrice, positionSize].forEach((input) => {
         input.disabled = !approved;
       });
       if (approved) updateAutoPrices();
@@ -1643,12 +1704,16 @@
     function updateAutoPrices() {
       const entry = toNumber(entryPrice.value);
       if (!Number.isFinite(entry)) {
+        takeProfit10Price.value = "";
         takeProfitPrice.value = "";
+        takeProfit70Price.value = "";
         stopLossPrice.value = "";
         updatePnlPreview();
         return;
       }
+      takeProfit10Price.value = (entry * 1.1).toFixed(2);
       takeProfitPrice.value = (entry * 1.3).toFixed(2);
+      takeProfit70Price.value = (entry * 1.7).toFixed(2);
       stopLossPrice.value = (entry * 0.7).toFixed(2);
       updatePnlPreview();
     }
@@ -1666,6 +1731,29 @@
     function getPnl(trade) {
       if (!Number.isFinite(trade.entryPrice) || !Number.isFinite(trade.exitPrice)) return NaN;
       return trade.exitPrice - trade.entryPrice;
+    }
+
+    function getHoldingDurationLabel(trade) {
+      const duration = getHoldingDurationMinutes(trade);
+      if (!Number.isFinite(duration)) return "-";
+      const hours = Math.floor(duration / 60);
+      const minutes = duration % 60;
+      if (hours <= 0) return `${minutes} 分钟`;
+      return `${hours} 小时 ${minutes} 分钟`;
+    }
+
+    function getHoldingDurationMinutes(trade) {
+      if (!trade.entryTime || !trade.exitTime) return NaN;
+      const entryMinutes = timeToMinutes(trade.entryTime);
+      const exitMinutes = timeToMinutes(trade.exitTime);
+      if (!Number.isFinite(entryMinutes) || !Number.isFinite(exitMinutes)) return NaN;
+      return exitMinutes >= entryMinutes ? exitMinutes - entryMinutes : exitMinutes + 1440 - entryMinutes;
+    }
+
+    function timeToMinutes(value) {
+      const [hour, minute] = String(value || "").split(":").map(Number);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return NaN;
+      return hour * 60 + minute;
     }
 
     function getTradeCountForDate(date) {
@@ -2196,10 +2284,15 @@
     }
 
     function normalizeTrade(trade) {
+      const entry = Number(trade.entryPrice);
       return {
         ...trade,
         id: trade.id || crypto.randomUUID(),
         createdAt: trade.createdAt || new Date().toISOString(),
+        entryTime: trade.entryTime || "",
+        exitTime: trade.exitTime || "",
+        takeProfit10Price: Number.isFinite(Number(trade.takeProfit10Price)) ? Number(trade.takeProfit10Price) : Number.isFinite(entry) ? entry * 1.1 : NaN,
+        takeProfit70Price: Number.isFinite(Number(trade.takeProfit70Price)) ? Number(trade.takeProfit70Price) : Number.isFinite(entry) ? entry * 1.7 : NaN,
         positionSize: trade.positionSize || "1/3",
         approved: Boolean(trade.approved),
         macdSignal: Boolean(trade.macdSignal),
