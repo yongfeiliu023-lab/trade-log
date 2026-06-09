@@ -436,10 +436,20 @@
     }
 
     .trade-box-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
       margin-bottom: 10px;
       color: var(--text);
       font-size: 14px;
       font-weight: 760;
+    }
+
+    .trade-box-title button {
+      min-height: 32px;
+      padding: 6px 10px;
+      font-size: 12px;
     }
 
     .approve-badge {
@@ -522,7 +532,7 @@
 
     table {
       width: 100%;
-      min-width: 1460px;
+      min-width: 1520px;
       border-collapse: collapse;
     }
 
@@ -753,7 +763,10 @@
 
         <div class="field full hidden" id="tradeSetup">
           <div class="trade-box">
-            <div class="trade-box-title">入场计划</div>
+            <div class="trade-box-title">
+              <span>入场计划</span>
+              <button id="recordEntryButton" type="button" disabled>记录入场</button>
+            </div>
             <div class="checks">
               <div class="field">
                 <label for="tradeType">交易类型</label>
@@ -783,6 +796,10 @@
                 <input id="takeProfit70Price" name="takeProfit70Price" type="number" min="0" step="0.01" readonly disabled>
               </div>
               <div class="field">
+                <label for="stopLoss20Price">止损价格 -20%</label>
+                <input id="stopLoss20Price" name="stopLoss20Price" type="number" min="0" step="0.01" readonly disabled>
+              </div>
+              <div class="field">
                 <label for="stopLossPrice">止损价格 -30%</label>
                 <input id="stopLossPrice" name="stopLossPrice" type="number" min="0" step="0.01" readonly disabled>
               </div>
@@ -800,7 +817,10 @@
 
         <div class="field full">
           <div class="trade-box">
-            <div class="trade-box-title">出场记录</div>
+            <div class="trade-box-title">
+              <span>出场记录</span>
+              <button id="recordExitButton" type="button">记录出场</button>
+            </div>
             <div class="checks">
               <div class="field">
                 <label for="exitPrice">实际出场价格</label>
@@ -942,7 +962,8 @@
               <th>止盈+10%</th>
               <th>止盈+30%</th>
               <th>止盈+70%</th>
-              <th>止损</th>
+              <th>止损-20%</th>
+              <th>止损-30%</th>
               <th>仓位</th>
               <th>出场</th>
               <th>出场时间</th>
@@ -1025,6 +1046,7 @@
     const takeProfit10Price = document.querySelector("#takeProfit10Price");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
     const takeProfit70Price = document.querySelector("#takeProfit70Price");
+    const stopLoss20Price = document.querySelector("#stopLoss20Price");
     const stopLossPrice = document.querySelector("#stopLossPrice");
     const exitPrice = document.querySelector("#exitPrice");
     const exitTime = document.querySelector("#exitTime");
@@ -1034,6 +1056,8 @@
     const approveBadge = document.querySelector("#approveBadge");
     const approveHint = document.querySelector("#approveHint");
     const saveTrade = document.querySelector("#saveTrade");
+    const recordEntryButton = document.querySelector("#recordEntryButton");
+    const recordExitButton = document.querySelector("#recordExitButton");
     const tradeType = document.querySelector("#tradeType");
     const positionSize = document.querySelector("#positionSize");
 
@@ -1063,6 +1087,8 @@
 
     document.querySelector("#logoutButton").addEventListener("click", logout);
     reminderToggle.addEventListener("click", toggleMarketReminder);
+    recordEntryButton.addEventListener("click", recordEntryTime);
+    recordExitButton.addEventListener("click", recordExitTime);
     tabButtons.forEach((button) => {
       button.addEventListener("click", () => switchTab(button.dataset.tab));
     });
@@ -1094,6 +1120,7 @@
         takeProfit10Price: toNumber(data.get("takeProfit10Price")),
         takeProfitPrice: toNumber(data.get("takeProfitPrice")),
         takeProfit70Price: toNumber(data.get("takeProfit70Price")),
+        stopLoss20Price: toNumber(data.get("stopLoss20Price")),
         stopLossPrice: toNumber(data.get("stopLossPrice")),
         positionSize: data.get("positionSize") || "1/3",
         exitPrice: toNumber(data.get("exitPrice")),
@@ -1182,7 +1209,7 @@
       }
 
       const headers = [
-        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+10%", "止盈价格+30%", "止盈价格+70%", "止损价格",
+        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+10%", "止盈价格+30%", "止盈价格+70%", "止损价格-20%", "止损价格-30%",
         "仓位选择", "实际出场价格", "出场时间", "持仓时间", "盈亏", "结果", "是否按规则执行", "情绪状态",
         "是否提前卖出", "是否移动止损", "是否加仓", "备注"
       ];
@@ -1199,6 +1226,7 @@
         trade.takeProfit10Price,
         trade.takeProfitPrice,
         trade.takeProfit70Price,
+        trade.stopLoss20Price,
         trade.stopLossPrice,
         trade.positionSize || "1/3",
         trade.exitPrice,
@@ -1662,6 +1690,7 @@
             <td>${formatNumber(trade.takeProfit10Price)}</td>
             <td>${formatNumber(trade.takeProfitPrice)}</td>
             <td>${formatNumber(trade.takeProfit70Price)}</td>
+            <td>${formatNumber(trade.stopLoss20Price)}</td>
             <td>${formatNumber(trade.stopLossPrice)}</td>
             <td>${escapeHtml(trade.positionSize || "1/3")}</td>
             <td>${formatNumber(trade.exitPrice)}</td>
@@ -1687,7 +1716,8 @@
       approveBadge.classList.toggle("hidden", !approved);
       approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
       saveTrade.disabled = !approved;
-      [tradeType, entryPrice, entryTime, takeProfit10Price, takeProfitPrice, takeProfit70Price, stopLossPrice, positionSize].forEach((input) => {
+      recordEntryButton.disabled = !approved;
+      [tradeType, entryPrice, entryTime, takeProfit10Price, takeProfitPrice, takeProfit70Price, stopLoss20Price, stopLossPrice, positionSize].forEach((input) => {
         input.disabled = !approved;
       });
       if (approved) updateAutoPrices();
@@ -1701,12 +1731,33 @@
       }
     }
 
+    function recordEntryTime() {
+      setDateToToday();
+      entryTime.value = getCurrentEasternTimeValue();
+      updateRiskPanel();
+    }
+
+    function recordExitTime() {
+      exitTime.value = getCurrentEasternTimeValue();
+      if (resultInput.value === "未平仓") {
+        resultInput.value = "手动平仓";
+      }
+      updatePnlPreview();
+      updateRiskPanel();
+    }
+
+    function getCurrentEasternTimeValue() {
+      const et = getEasternTimeParts(new Date());
+      return `${String(et.hour).padStart(2, "0")}:${String(et.minute).padStart(2, "0")}`;
+    }
+
     function updateAutoPrices() {
       const entry = toNumber(entryPrice.value);
       if (!Number.isFinite(entry)) {
         takeProfit10Price.value = "";
         takeProfitPrice.value = "";
         takeProfit70Price.value = "";
+        stopLoss20Price.value = "";
         stopLossPrice.value = "";
         updatePnlPreview();
         return;
@@ -1714,6 +1765,7 @@
       takeProfit10Price.value = (entry * 1.1).toFixed(2);
       takeProfitPrice.value = (entry * 1.3).toFixed(2);
       takeProfit70Price.value = (entry * 1.7).toFixed(2);
+      stopLoss20Price.value = (entry * 0.8).toFixed(2);
       stopLossPrice.value = (entry * 0.7).toFixed(2);
       updatePnlPreview();
     }
@@ -2293,6 +2345,7 @@
         exitTime: trade.exitTime || "",
         takeProfit10Price: Number.isFinite(Number(trade.takeProfit10Price)) ? Number(trade.takeProfit10Price) : Number.isFinite(entry) ? entry * 1.1 : NaN,
         takeProfit70Price: Number.isFinite(Number(trade.takeProfit70Price)) ? Number(trade.takeProfit70Price) : Number.isFinite(entry) ? entry * 1.7 : NaN,
+        stopLoss20Price: Number.isFinite(Number(trade.stopLoss20Price)) ? Number(trade.stopLoss20Price) : Number.isFinite(entry) ? entry * 0.8 : NaN,
         positionSize: trade.positionSize || "1/3",
         approved: Boolean(trade.approved),
         macdSignal: Boolean(trade.macdSignal),
