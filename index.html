@@ -560,8 +560,10 @@
     }
 
     .note {
-      max-width: 240px;
-      white-space: normal;
+      width: 64px;
+      max-width: 64px;
+      text-align: center;
+      white-space: nowrap;
       color: var(--muted);
     }
 
@@ -1185,6 +1187,12 @@
     });
 
     tableBody.addEventListener("click", async (event) => {
+      const viewButton = event.target.closest("[data-view-notes]");
+      if (viewButton) {
+        viewTradeNotes(viewButton.dataset.viewNotes);
+        return;
+      }
+
       const editButton = event.target.closest("[data-edit-notes]");
       if (editButton) {
         await editTradeNotes(editButton.dataset.editNotes);
@@ -1731,7 +1739,7 @@
             <td>${yesNo(trade.soldEarly)}</td>
             <td>${yesNo(trade.movedStop)}</td>
             <td>${yesNo(trade.addedPosition)}</td>
-            <td class="note">${escapeHtml(trade.notes || "-")}</td>
+            <td class="note">${getNotesCellHtml(trade)}</td>
             <td>
               <button type="button" data-edit-notes="${trade.id}">编辑备注</button>
               <button class="danger" type="button" data-delete="${trade.id}">删除</button>
@@ -1765,6 +1773,17 @@
         setSyncStatus("备注同步失败");
         alert(`备注同步失败。\n${error.message}`);
       }
+    }
+
+    function viewTradeNotes(id) {
+      const trade = trades.find((item) => item.id === id);
+      if (!trade || !trade.notes) return;
+      alert(trade.notes);
+    }
+
+    function getNotesCellHtml(trade) {
+      if (!trade.notes) return "-";
+      return `<button type="button" data-view-notes="${trade.id}" title="查看备注">...</button>`;
     }
 
     function updateApprovalState() {
