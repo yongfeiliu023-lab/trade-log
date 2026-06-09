@@ -1185,9 +1185,15 @@
     });
 
     tableBody.addEventListener("click", async (event) => {
-      const button = event.target.closest("[data-delete]");
-      if (!button) return;
-      const trade = trades.find((item) => item.id === button.dataset.delete);
+      const editButton = event.target.closest("[data-edit-notes]");
+      if (editButton) {
+        await editTradeNotes(editButton.dataset.editNotes);
+        return;
+      }
+
+      const deleteButton = event.target.closest("[data-delete]");
+      if (!deleteButton) return;
+      const trade = trades.find((item) => item.id === deleteButton.dataset.delete);
       if (!trade) return;
       const label = `${trade.date} ${trade.symbol} ${trade.tradeType}`;
       if (confirm(`删除这条记录？\n${label}`)) {
@@ -1726,10 +1732,39 @@
             <td>${yesNo(trade.movedStop)}</td>
             <td>${yesNo(trade.addedPosition)}</td>
             <td class="note">${escapeHtml(trade.notes || "-")}</td>
-            <td><button class="danger" type="button" data-delete="${trade.id}">删除</button></td>
+            <td>
+              <button type="button" data-edit-notes="${trade.id}">编辑备注</button>
+              <button class="danger" type="button" data-delete="${trade.id}">删除</button>
+            </td>
           </tr>
         `;
       }).join("");
+    }
+
+    async function editTradeNotes(id) {
+      const trade = trades.find((item) => item.id === id);
+      if (!trade) return;
+
+      const nextNotes = prompt("编辑备注", trade.notes || "");
+      if (nextNotes === null) return;
+
+      const updatedTrade = {
+        ...trade,
+        notes: cleanText(nextNotes)
+      };
+
+      try {
+        setSyncStatus("正在同步备注...");
+        await updateTradeInSupabase(updatedTrade);
+        trades = trades.map((item) => item.id === id ? updatedTrade : item);
+        saveLocalTrades();
+        render();
+        setSyncStatus("备注已同步");
+      } catch (error) {
+        console.error(error);
+        setSyncStatus("备注同步失败");
+        alert(`备注同步失败。\n${error.message}`);
+      }
     }
 
     function updateApprovalState() {
@@ -2323,6 +2358,17 @@
     async function deleteTradeFromSupabase(id) {
       await supabaseRequest(`?id=eq.${encodeURIComponent(id)}`, {
         method: "DELETE",
+        prefer: "return=minimal"
+      });
+    }
+
+    async function updateTradeInSupabase(trade) {
+      await supabaseRequest(`?id=eq.${encodeURIComponent(trade.id)}`, {
+        method: "PATCH",
+        body: {
+          trade_date: trade.date,
+          data: trade
+        },
         prefer: "return=minimal"
       });
     }
