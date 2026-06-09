@@ -815,7 +815,7 @@
           </div>
         </div>
 
-        <div class="field full">
+        <div class="field full hidden" id="exitSection">
           <div class="trade-box">
             <div class="trade-box-title">
               <span>出场记录</span>
@@ -843,52 +843,62 @@
           </div>
         </div>
 
-        <div class="field">
-          <label for="followedRules">是否按规则执行</label>
-          <select id="followedRules" name="followedRules" required>
-            <option value="是">是</option>
-            <option value="否">否</option>
-          </select>
-        </div>
-        <div class="field wide">
-          <label for="emotion">情绪状态</label>
-          <select id="emotion" name="emotion" required>
-            <option value="平静">平静</option>
-            <option value="紧张">紧张</option>
-            <option value="贪婪">贪婪</option>
-            <option value="恐惧">恐惧</option>
-            <option value="想翻本">想翻本</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label>行为标记</label>
-          <div class="checks">
-            <label class="check"><input id="soldEarly" name="soldEarly" type="checkbox"> 是否提前卖出</label>
-            <label class="check"><input id="movedStop" name="movedStop" type="checkbox"> 是否移动止损</label>
-            <label class="check"><input id="addedPosition" name="addedPosition" type="checkbox"> 是否加仓</label>
-          </div>
-        </div>
-
-        <div class="field full">
-          <div class="risk-panel" id="riskPanel">
-            <div class="risk-title-row">
-              <span class="risk-title" id="riskTitle">交易前风险检查</span>
-              <span class="risk-level" id="riskLevel">低风险</span>
+        <div class="field full hidden" id="reviewSection">
+          <div class="trade-box">
+            <div class="trade-box-title">
+              <span>Review</span>
             </div>
-            <ul class="risk-list" id="riskList">
-              <li>等待交易条件输入。</li>
-            </ul>
+            <div class="checks">
+              <div class="field">
+                <label for="followedRules">是否按规则执行</label>
+                <select id="followedRules" name="followedRules" required>
+                  <option value="是">是</option>
+                  <option value="否">否</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="emotion">情绪状态</label>
+                <select id="emotion" name="emotion" required>
+                  <option value="平静">平静</option>
+                  <option value="紧张">紧张</option>
+                  <option value="贪婪">贪婪</option>
+                  <option value="恐惧">恐惧</option>
+                  <option value="想翻本">想翻本</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field full">
+              <label>行为标记</label>
+              <div class="checks">
+                <label class="check"><input id="soldEarly" name="soldEarly" type="checkbox"> 是否提前卖出</label>
+                <label class="check"><input id="movedStop" name="movedStop" type="checkbox"> 是否移动止损</label>
+                <label class="check"><input id="addedPosition" name="addedPosition" type="checkbox"> 是否加仓</label>
+              </div>
+            </div>
+
+            <div class="field full">
+              <div class="risk-panel" id="riskPanel">
+                <div class="risk-title-row">
+                  <span class="risk-title" id="riskTitle">交易前风险检查</span>
+                  <span class="risk-level" id="riskLevel">低风险</span>
+                </div>
+                <ul class="risk-list" id="riskList">
+                  <li>等待交易条件输入。</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="field full">
+              <label for="notes">备注</label>
+              <textarea id="notes" name="notes" placeholder="记录入场理由、复盘观察、情绪触发点等"></textarea>
+            </div>
+
+            <div class="form-actions full">
+              <span class="tiny" id="pnlPreview">本笔盈亏：$0.00</span>
+              <button class="primary" id="saveTrade" type="submit" disabled>保存记录</button>
+            </div>
           </div>
-        </div>
-
-        <div class="field full">
-          <label for="notes">备注</label>
-          <textarea id="notes" name="notes" placeholder="记录入场理由、复盘观察、情绪触发点等"></textarea>
-        </div>
-
-        <div class="form-actions full">
-          <span class="tiny" id="pnlPreview">本笔盈亏：$0.00</span>
-          <button class="primary" id="saveTrade" type="submit" disabled>保存记录</button>
         </div>
       </form>
     </section>
@@ -1053,6 +1063,8 @@
     const pnlPreview = document.querySelector("#pnlPreview");
     const signalInputs = [...document.querySelectorAll("#signalChecks input")];
     const tradeSetup = document.querySelector("#tradeSetup");
+    const exitSection = document.querySelector("#exitSection");
+    const reviewSection = document.querySelector("#reviewSection");
     const approveBadge = document.querySelector("#approveBadge");
     const approveHint = document.querySelector("#approveHint");
     const saveTrade = document.querySelector("#saveTrade");
@@ -1097,6 +1109,16 @@
       event.preventDefault();
       const data = new FormData(form);
       const tradeDate = data.get("date");
+
+      if (!cleanText(data.get("entryTime"))) {
+        alert("请先点击记录入场。");
+        return;
+      }
+
+      if (!cleanText(data.get("exitTime"))) {
+        alert("请先点击记录出场。");
+        return;
+      }
 
       if (getTradeCountForDate(tradeDate) >= 3) {
         const shouldContinue = confirm("今天已经记录了 3 笔交易。你确定要进行第 4 笔交易吗？");
@@ -1713,9 +1735,13 @@
     function updateApprovalState() {
       const approved = isApproved();
       tradeSetup.classList.toggle("hidden", !approved);
+      if (!approved) {
+        exitSection.classList.add("hidden");
+        reviewSection.classList.add("hidden");
+      }
       approveBadge.classList.toggle("hidden", !approved);
       approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
-      saveTrade.disabled = !approved;
+      saveTrade.disabled = !approved || !entryTime.value || !exitTime.value;
       recordEntryButton.disabled = !approved;
       [tradeType, entryPrice, entryTime, takeProfit10Price, takeProfitPrice, takeProfit70Price, stopLoss20Price, stopLossPrice, positionSize].forEach((input) => {
         input.disabled = !approved;
@@ -1734,15 +1760,24 @@
     function recordEntryTime() {
       setDateToToday();
       entryTime.value = getCurrentEasternTimeValue();
+      exitSection.classList.remove("hidden");
+      reviewSection.classList.add("hidden");
+      saveTrade.disabled = true;
       showInPageReminder("已记录入场时间", `入场时间：${entryTime.value} ET`);
       updateRiskPanel();
     }
 
     function recordExitTime() {
+      if (!entryTime.value) {
+        alert("请先点击记录入场。");
+        return;
+      }
       exitTime.value = getCurrentEasternTimeValue();
       if (resultInput.value === "未平仓") {
         resultInput.value = "手动平仓";
       }
+      reviewSection.classList.remove("hidden");
+      saveTrade.disabled = false;
       showInPageReminder("已记录出场时间", `出场时间：${exitTime.value} ET`);
       updatePnlPreview();
       updateRiskPanel();
