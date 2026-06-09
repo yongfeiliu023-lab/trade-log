@@ -781,7 +781,7 @@
               </div>
               <div class="field">
                 <label for="entryTime">入场时间</label>
-                <input id="entryTime" name="entryTime" type="time" disabled>
+                <input id="entryTime" name="entryTime" type="time" readonly disabled>
               </div>
               <div class="field">
                 <label for="takeProfit10Price">止盈价格 +10%</label>
@@ -828,7 +828,7 @@
               </div>
               <div class="field">
                 <label for="exitTime">出场时间</label>
-                <input id="exitTime" name="exitTime" type="time">
+                <input id="exitTime" name="exitTime" type="time" readonly>
               </div>
               <div class="field">
                 <label for="result">结果</label>
@@ -1734,6 +1734,7 @@
     function recordEntryTime() {
       setDateToToday();
       entryTime.value = getCurrentEasternTimeValue();
+      showInPageReminder("已记录入场时间", `入场时间：${entryTime.value} ET`);
       updateRiskPanel();
     }
 
@@ -1742,6 +1743,7 @@
       if (resultInput.value === "未平仓") {
         resultInput.value = "手动平仓";
       }
+      showInPageReminder("已记录出场时间", `出场时间：${exitTime.value} ET`);
       updatePnlPreview();
       updateRiskPanel();
     }
