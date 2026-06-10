@@ -720,7 +720,7 @@
         <div class="sync-status" id="syncStatus">同步状态：准备连接 Supabase</div>
       </div>
       <div class="header-actions">
-        <button id="reminderToggle" type="button">开启提前提醒</button>
+        <button id="reminderToggle" type="button">开启交易提醒</button>
         <button id="logoutButton" type="button">退出登录</button>
         <button id="exportCsv" type="button">导出 CSV</button>
         <button id="clearAll" class="danger" type="button">清空全部</button>
@@ -786,20 +786,8 @@
                 <input id="entryTime" name="entryTime" type="time" disabled>
               </div>
               <div class="field">
-                <label for="takeProfit20Price">止盈价格 +20%</label>
-                <input id="takeProfit20Price" name="takeProfit20Price" type="number" min="0" step="0.01" readonly disabled>
-              </div>
-              <div class="field">
                 <label for="takeProfitPrice">止盈价格 +30%</label>
                 <input id="takeProfitPrice" name="takeProfitPrice" type="number" min="0" step="0.01" readonly disabled>
-              </div>
-              <div class="field">
-                <label for="takeProfit10Price">止盈价格 +70%</label>
-                <input id="takeProfit10Price" name="takeProfit10Price" type="number" min="0" step="0.01" readonly disabled>
-              </div>
-              <div class="field">
-                <label for="stopLoss20Price">止损价格 -20%</label>
-                <input id="stopLoss20Price" name="stopLoss20Price" type="number" min="0" step="0.01" readonly disabled>
               </div>
               <div class="field">
                 <label for="stopLossPrice">止损价格 -30%</label>
@@ -971,10 +959,7 @@
               <th>Approve</th>
               <th>入场</th>
               <th>入场时间</th>
-              <th>止盈+20%</th>
               <th>止盈+30%</th>
-              <th>止盈+70%</th>
-              <th>止损-20%</th>
               <th>止损-30%</th>
               <th>仓位</th>
               <th>出场</th>
@@ -1013,7 +998,7 @@
     const MARKET_OPEN_MINUTES = 570;
     const MARKET_CLOSE_MINUTES = 960;
     const REMINDER_INTERVAL_MINUTES = 30;
-    const REMINDER_LEAD_MINUTES = 2;
+    const REMINDER_LEAD_MINUTES = 0;
     const DAILY_REMINDER_TOTAL = 14;
     const app = document.querySelector("#app");
     const loginScreen = document.querySelector("#loginScreen");
@@ -1055,10 +1040,7 @@
     const emotionInput = document.querySelector("#emotion");
     const entryPrice = document.querySelector("#entryPrice");
     const entryTime = document.querySelector("#entryTime");
-    const takeProfit10Price = document.querySelector("#takeProfit10Price");
     const takeProfitPrice = document.querySelector("#takeProfitPrice");
-    const takeProfit20Price = document.querySelector("#takeProfit20Price");
-    const stopLoss20Price = document.querySelector("#stopLoss20Price");
     const stopLossPrice = document.querySelector("#stopLossPrice");
     const exitPrice = document.querySelector("#exitPrice");
     const exitTime = document.querySelector("#exitTime");
@@ -1137,10 +1119,7 @@
         tradeType: data.get("tradeType"),
         entryPrice: toNumber(data.get("entryPrice")),
         entryTime: finalEntryTime,
-        takeProfit10Price: toNumber(data.get("takeProfit10Price")),
         takeProfitPrice: toNumber(data.get("takeProfitPrice")),
-        takeProfit20Price: toNumber(data.get("takeProfit20Price")),
-        stopLoss20Price: toNumber(data.get("stopLoss20Price")),
         stopLossPrice: toNumber(data.get("stopLossPrice")),
         positionSize: data.get("positionSize") || "1/3",
         exitPrice: toNumber(data.get("exitPrice")),
@@ -1241,7 +1220,7 @@
       }
 
       const headers = [
-        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+20%", "止盈价格+30%", "止盈价格+70%", "止损价格-20%", "止损价格-30%",
+        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+30%", "止损价格-30%",
         "仓位选择", "实际出场价格", "出场时间", "持仓时间", "盈亏", "结果", "是否按规则执行", "情绪状态",
         "是否提前卖出", "是否移动止损", "是否加仓", "备注"
       ];
@@ -1255,10 +1234,7 @@
         yesNo(trade.approved),
         trade.entryPrice,
         trade.entryTime,
-        trade.takeProfit20Price,
         trade.takeProfitPrice,
-        trade.takeProfit10Price,
-        trade.stopLoss20Price,
         trade.stopLossPrice,
         trade.positionSize || "1/3",
         trade.exitPrice,
@@ -1721,10 +1697,7 @@
             <td>${yesNo(trade.approved)}</td>
             <td>${formatNumber(trade.entryPrice)}</td>
             <td>${escapeHtml(trade.entryTime || "-")}</td>
-            <td>${formatNumber(trade.takeProfit20Price)}</td>
             <td>${formatNumber(trade.takeProfitPrice)}</td>
-            <td>${formatNumber(trade.takeProfit10Price)}</td>
-            <td>${formatNumber(trade.stopLoss20Price)}</td>
             <td>${formatNumber(trade.stopLossPrice)}</td>
             <td>${escapeHtml(trade.positionSize || "1/3")}</td>
             <td>${formatNumber(trade.exitPrice)}</td>
@@ -1795,7 +1768,7 @@
       approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
       saveTrade.disabled = !approved || reviewSection.classList.contains("hidden");
       recordEntryButton.disabled = !approved;
-      [tradeType, entryPrice, entryTime, takeProfit10Price, takeProfitPrice, takeProfit20Price, stopLoss20Price, stopLossPrice, positionSize].forEach((input) => {
+      [tradeType, entryPrice, entryTime, takeProfitPrice, stopLossPrice, positionSize].forEach((input) => {
         input.disabled = !approved;
       });
       if (approved) updateAutoPrices();
@@ -1868,18 +1841,12 @@
     function updateAutoPrices() {
       const entry = toNumber(entryPrice.value);
       if (!Number.isFinite(entry)) {
-        takeProfit10Price.value = "";
         takeProfitPrice.value = "";
-        takeProfit20Price.value = "";
-        stopLoss20Price.value = "";
         stopLossPrice.value = "";
         updatePnlPreview();
         return;
       }
-      takeProfit20Price.value = (entry * 1.2).toFixed(2);
       takeProfitPrice.value = (entry * 1.3).toFixed(2);
-      takeProfit10Price.value = (entry * 1.7).toFixed(2);
-      stopLoss20Price.value = (entry * 0.8).toFixed(2);
       stopLossPrice.value = (entry * 0.7).toFixed(2);
       updatePnlPreview();
     }
@@ -2164,7 +2131,7 @@
 
       sendMarketReminder(
         "交易纪律提醒",
-        `${formatEtTime(reminderTarget)} ET 交易提醒提前 2 分钟：先看纪律检查，是否 approve、是否想翻本、是否过度交易、是否该停手。`
+        `${formatEtTime(reminderTarget)} ET 交易提醒：先看纪律检查，是否 approve、是否想翻本、是否过度交易、是否该停手。`
       );
     }
 
@@ -2183,7 +2150,7 @@
     }
 
     function updateReminderStatus(message = "") {
-      reminderToggle.textContent = reminderEnabled ? "关闭提前提醒" : "开启提前提醒";
+      reminderToggle.textContent = reminderEnabled ? "关闭交易提醒" : "开启交易提醒";
       updateMarketTimeStatus();
 
       if (!reminderEnabled) {
@@ -2203,7 +2170,7 @@
 
     function getReminderModeText() {
       if ("Notification" in window && Notification.permission === "granted") {
-        return "美股常规交易时段内，每 30 分钟交易点提前 2 分钟发送系统通知和页面提醒。";
+        return "美股常规交易时段内，每 30 分钟发送系统通知和页面提醒。";
       }
       return "当前浏览器不支持或未允许系统通知，已改用页面内提醒。请保持网页打开。";
     }
@@ -2240,7 +2207,7 @@
       const et = getEasternTimeParts(new Date());
       const progress = getReminderProgress(et);
       const marketState = isRegularMarketTime(et) ? "交易中" : getMarketStateLabel(et);
-      marketTimeStatus.textContent = `美东时间 ${et.month}/${et.day} ${formatEtTime(et.hour * 60 + et.minute)} ET，${marketState}，今日提醒 ${progress.completed}/${progress.total}，剩余 ${progress.remaining} 次，提前 ${REMINDER_LEAD_MINUTES} 分钟`;
+      marketTimeStatus.textContent = `美东时间 ${et.month}/${et.day} ${formatEtTime(et.hour * 60 + et.minute)} ET，${marketState}，今日提醒 ${progress.completed}/${progress.total}，剩余 ${progress.remaining} 次`;
       checkMonthlyProfitReminder();
     }
 
@@ -2468,9 +2435,6 @@
         createdAt: trade.createdAt || new Date().toISOString(),
         entryTime: trade.entryTime || "",
         exitTime: trade.exitTime || "",
-        takeProfit10Price: getTakeProfit70Value(trade, entry),
-        takeProfit20Price: Number.isFinite(Number(trade.takeProfit20Price)) ? Number(trade.takeProfit20Price) : Number.isFinite(entry) ? entry * 1.2 : NaN,
-        stopLoss20Price: Number.isFinite(Number(trade.stopLoss20Price)) ? Number(trade.stopLoss20Price) : Number.isFinite(entry) ? entry * 0.8 : NaN,
         positionSize: trade.positionSize || "1/3",
         approved: Boolean(trade.approved),
         macdSignal: Boolean(trade.macdSignal),
@@ -2480,19 +2444,6 @@
         movedStop: Boolean(trade.movedStop),
         addedPosition: Boolean(trade.addedPosition)
       };
-    }
-
-    function getTakeProfit70Value(trade, entry) {
-      const storedValue = Number(trade.takeProfit10Price);
-      if (!Number.isFinite(entry)) {
-        return Number.isFinite(storedValue) ? storedValue : NaN;
-      }
-
-      const oldTenPercentTarget = entry * 1.1;
-      if (!Number.isFinite(storedValue) || Math.abs(storedValue - oldTenPercentTarget) <= 0.01) {
-        return entry * 1.7;
-      }
-      return storedValue;
     }
 
     function setSyncStatus(message) {
