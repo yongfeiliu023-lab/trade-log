@@ -167,6 +167,75 @@
       overflow-wrap: anywhere;
     }
 
+    .waiting-board {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) repeat(2, minmax(120px, 0.6fr));
+      gap: 12px;
+      align-items: stretch;
+      margin-bottom: 18px;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .waiting-main,
+    .waiting-metric {
+      display: grid;
+      align-content: center;
+      gap: 7px;
+      min-height: 118px;
+      padding: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .waiting-title {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 760;
+    }
+
+    .waiting-time {
+      font-size: clamp(44px, 8vw, 76px);
+      line-height: 0.95;
+      font-weight: 860;
+      color: var(--green);
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .waiting-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .waiting-label {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .waiting-value {
+      font-size: clamp(32px, 5vw, 52px);
+      line-height: 1;
+      font-weight: 840;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .waiting-value.good {
+      color: var(--green);
+    }
+
+    .waiting-value.warn {
+      color: var(--yellow);
+    }
+
+    .waiting-value.bad {
+      color: var(--red);
+    }
+
     .chart-panel {
       padding: 18px;
       background: var(--panel);
@@ -655,6 +724,10 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .waiting-board {
+        grid-template-columns: 1fr;
+      }
+
       form {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -728,6 +801,22 @@
         <div class="reminder-status" id="marketTimeStatus">美股交易时间：读取中</div>
       </div>
     </header>
+
+    <section class="waiting-board" aria-label="今日等待纪律仪表">
+      <div class="waiting-main">
+        <div class="waiting-title">🏆 今天成功等待：</div>
+        <div class="waiting-time" id="waitingTimer">00:00:00</div>
+        <div class="waiting-meta" id="waitingTimerMeta">按美东交易时间统计</div>
+      </div>
+      <div class="waiting-metric">
+        <div class="waiting-label">违规交易：</div>
+        <div class="waiting-value good" id="todayViolationCount">0</div>
+      </div>
+      <div class="waiting-metric">
+        <div class="waiting-label">纪律分：</div>
+        <div class="waiting-value good" id="todayDisciplineScore">100</div>
+      </div>
+    </section>
 
     <nav class="tabs" aria-label="主功能">
       <button class="tab-button active" type="button" data-tab="trade">交易</button>
@@ -1034,6 +1123,10 @@
     const behaviorInsights = document.querySelector("#behaviorInsights");
     const stage50 = document.querySelector("#stage50");
     const stage100 = document.querySelector("#stage100");
+    const waitingTimer = document.querySelector("#waitingTimer");
+    const waitingTimerMeta = document.querySelector("#waitingTimerMeta");
+    const todayViolationCount = document.querySelector("#todayViolationCount");
+    const todayDisciplineScore = document.querySelector("#todayDisciplineScore");
     const dateInput = document.querySelector("#date");
     const resultInput = document.querySelector("#result");
     const followedRulesInput = document.querySelector("#followedRules");
@@ -1061,6 +1154,7 @@
     let authSession = loadAuthSession();
     let reminderTimer = null;
     let marketClockTimer = null;
+    let waitingTimerInterval = null;
     let reminderEnabled = localStorage.getItem(REMINDER_STORAGE_KEY) === "on";
     let lastReminderSlot = "";
 
@@ -1277,6 +1371,7 @@
 
     function render() {
       renderStats();
+      renderWaitingBoard();
       renderTable();
       renderAnalysisChart();
       renderDailyScore();
@@ -1313,6 +1408,61 @@
       setMoney("#avgLoss", avgLoss);
       setText("#rewardRisk", rewardRisk.toFixed(2));
       setText("#lossStreak", getCurrentLossStreak());
+    }
+
+    function renderWaitingBoard() {
+      const et = getEasternTimeParts(new Date());
+      const todayKey = getEtDateKey(et);
+      const dayTrades = getTradesForDate(todayKey);
+      const score = getDailyDisciplineScore(dayTrades);
+      const violations = getDailyViolationCount(dayTrades);
+      const wait = getTodayWaitingSeconds(et);
+
+      waitingTimer.textContent = formatDurationClock(wait.seconds);
+      waitingTimerMeta.textContent = wait.label;
+      todayViolationCount.textContent = violations;
+      todayViolationCount.className = `waiting-value ${violations === 0 ? "good" : violations <= 2 ? "warn" : "bad"}`;
+      todayDisciplineScore.textContent = score.value;
+      todayDisciplineScore.className = `waiting-value ${score.value >= 80 ? "good" : score.value >= 60 ? "warn" : "bad"}`;
+    }
+
+    function getDailyViolationCount(dayTrades) {
+      let count = 0;
+      dayTrades.forEach((trade, index) => {
+        const violated =
+          trade.followedRules === "否" ||
+          trade.positionSize === "全仓" ||
+          trade.movedStop ||
+          trade.emotion === "想翻本" ||
+          index >= 3;
+        if (violated) count += 1;
+      });
+      return count;
+    }
+
+    function getTodayWaitingSeconds(et) {
+      if (["Sat", "Sun"].includes(et.weekday)) {
+        return { seconds: 0, label: "今天不是美股交易日，保持耐心也是训练。" };
+      }
+
+      const currentSeconds = (et.hour * 60 + et.minute) * 60 + et.second;
+      const openSeconds = MARKET_OPEN_MINUTES * 60;
+      const closeSeconds = MARKET_CLOSE_MINUTES * 60;
+
+      if (currentSeconds < openSeconds) {
+        return { seconds: 0, label: `等待 ${formatEtTime(MARKET_OPEN_MINUTES)} ET 开盘` };
+      }
+
+      const seconds = Math.min(Math.max(currentSeconds - openSeconds, 0), closeSeconds - openSeconds);
+      const label = currentSeconds > closeSeconds ? "今日交易时段已结束" : "美股交易时段内，继续等待高质量机会";
+      return { seconds, label };
+    }
+
+    function formatDurationClock(totalSeconds) {
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
     function renderAnalysisChart() {
@@ -1968,6 +2118,7 @@
     function logout() {
       stopMarketReminder();
       stopMarketClock();
+      stopWaitingTimer();
       clearAuthSession();
       trades = [];
       localStorage.removeItem(STORAGE_KEY);
@@ -1981,6 +2132,7 @@
       setDateToToday();
       render();
       setSyncStatus(authSession?.email ? `已登录：${authSession.email}` : "已登录");
+      setupWaitingTimer();
       setupMarketClock();
       setupMarketReminder();
       checkMonthlyProfitReminder();
@@ -2116,6 +2268,17 @@
       marketClockTimer = null;
     }
 
+    function setupWaitingTimer() {
+      stopWaitingTimer();
+      renderWaitingBoard();
+      waitingTimerInterval = setInterval(renderWaitingBoard, 1000);
+    }
+
+    function stopWaitingTimer() {
+      if (waitingTimerInterval) clearInterval(waitingTimerInterval);
+      waitingTimerInterval = null;
+    }
+
     function checkMarketReminder() {
       updateReminderStatus();
       if (!reminderEnabled) return;
@@ -2220,6 +2383,7 @@
         weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
+        second: "2-digit",
         hour12: false
       }).formatToParts(date);
       const data = Object.fromEntries(parts.map((part) => [part.type, part.value]));
@@ -2229,8 +2393,13 @@
         day: data.day,
         weekday: data.weekday,
         hour: Number(data.hour),
-        minute: Number(data.minute)
+        minute: Number(data.minute),
+        second: Number(data.second)
       };
+    }
+
+    function getEtDateKey(et) {
+      return `${et.year}-${et.month}-${et.day}`;
     }
 
     function isRegularMarketTime(et) {
