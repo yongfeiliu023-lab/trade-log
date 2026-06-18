@@ -794,6 +794,7 @@
       </div>
       <div class="header-actions">
         <button id="reminderToggle" type="button">开启交易提醒</button>
+        <button id="exportCalendar" type="button">导出日历提醒</button>
         <button id="logoutButton" type="button">退出登录</button>
         <button id="exportCsv" type="button">导出 CSV</button>
         <button id="clearAll" class="danger" type="button">清空全部</button>
@@ -1352,6 +1353,8 @@
       link.click();
       URL.revokeObjectURL(url);
     });
+
+    document.querySelector("#exportCalendar").addEventListener("click", exportCalendarReminders);
 
     [entryPrice, exitPrice].forEach((input) => {
       input.addEventListener("input", updatePnlPreview);
@@ -2667,6 +2670,71 @@
       if (value > 0) return "profit";
       if (value < 0) return "loss";
       return "flat";
+    }
+
+    function exportCalendarReminders() {
+      const ics = buildCalendarReminderIcs();
+      const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "trade-discipline-google-calendar.ics";
+      link.click();
+      URL.revokeObjectURL(url);
+      alert("已导出日历提醒文件。请在 Google Calendar 设置里选择 Import，导入这个 .ics 文件。");
+    }
+
+    function buildCalendarReminderIcs() {
+      const et = getEasternTimeParts(new Date());
+      const startDate = `${et.year}${et.month}${et.day}`;
+      const dtstamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+      const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Trade Discipline Log//Calendar Reminders//ZH",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:交易纪律提醒",
+        "X-WR-TIMEZONE:America/New_York"
+      ];
+
+      for (let minutes = MARKET_OPEN_MINUTES; minutes <= MARKET_CLOSE_MINUTES; minutes += REMINDER_INTERVAL_MINUTES) {
+        const startTime = formatIcsTime(minutes);
+        const endTime = formatIcsTime(minutes + 5);
+        lines.push(
+          "BEGIN:VEVENT",
+          `UID:trade-discipline-${startDate}-${startTime}@trade-log`,
+          `DTSTAMP:${dtstamp}`,
+          `DTSTART;TZID=America/New_York:${startDate}T${startTime}00`,
+          `DTEND;TZID=America/New_York:${startDate}T${endTime}00`,
+          "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+          `SUMMARY:${escapeIcsText("交易纪律提醒")}`,
+          `DESCRIPTION:${escapeIcsText("先检查纪律：是否 approve、是否想翻本、是否过度交易、是否该停手。")}`,
+          "BEGIN:VALARM",
+          "ACTION:DISPLAY",
+          "TRIGGER:PT0M",
+          `DESCRIPTION:${escapeIcsText("交易纪律提醒")}`,
+          "END:VALARM",
+          "END:VEVENT"
+        );
+      }
+
+      lines.push("END:VCALENDAR");
+      return `${lines.join("\r\n")}\r\n`;
+    }
+
+    function formatIcsTime(totalMinutes) {
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+      return `${String(hour).padStart(2, "0")}${String(minute).padStart(2, "0")}`;
+    }
+
+    function escapeIcsText(value) {
+      return String(value)
+        .replaceAll("\\", "\\\\")
+        .replaceAll(";", "\\;")
+        .replaceAll(",", "\\,")
+        .replaceAll("\n", "\\n");
     }
 
     function csvCell(value) {
