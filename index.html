@@ -557,6 +557,49 @@
       font-weight: 760;
     }
 
+    .daily-review-panel {
+      margin-top: 18px;
+      padding: 14px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .daily-review-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .daily-review-card {
+      padding: 11px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 80px;
+    }
+
+    .daily-review-summary {
+      margin: 12px 0;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .daily-review-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
     .section {
       padding: 18px;
       margin-bottom: 18px;
@@ -919,6 +962,10 @@
         padding: 7px;
       }
 
+      .daily-review-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .calendar-score {
         font-size: 18px;
       }
@@ -1274,6 +1321,25 @@
           <div class="insight-grid" id="behaviorInsights"></div>
         </div>
       </div>
+      <div class="daily-review-panel">
+        <div class="score-row">
+          <div>
+            <h2>每日盘后复盘</h2>
+            <div class="tiny" id="dailyReviewDateLabel">按当前选择日期生成快速总结</div>
+          </div>
+          <span class="score-badge" id="dailyReviewBadge">待复盘</span>
+        </div>
+        <div class="daily-review-grid" id="dailyReviewMetrics"></div>
+        <div class="daily-review-summary" id="dailyReviewAutoSummary">暂无交易记录，今天的最好交易可能就是等待。</div>
+        <div class="field">
+          <label for="dailyReviewText">盘后快速总结</label>
+          <textarea id="dailyReviewText" placeholder="今天我做对了什么？哪里违反纪律？明天只改一个动作是什么？"></textarea>
+        </div>
+        <div class="daily-review-actions">
+          <span class="tiny" id="dailyReviewSaveStatus">未保存</span>
+          <button class="primary" id="saveDailyReview" type="button">保存今日复盘</button>
+        </div>
+      </div>
       <div class="stage-grid" id="stageAnalysis">
         <div class="stage-card" id="stage50"></div>
         <div class="stage-card" id="stage100"></div>
@@ -1326,6 +1392,7 @@
     const STORAGE_KEY = "trade-discipline-log-v1";
     const AUTH_STORAGE_KEY = "trade-discipline-auth-v1";
     const REMINDER_STORAGE_KEY = "trade-discipline-reminder-v1";
+    const DAILY_REVIEW_STORAGE_KEY = "trade-discipline-daily-reviews-v1";
     const SUPABASE_URL = "https://thakeglzlctbpxqfyqfv.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYWtlZ2x6bGN0YnB4cWZ5cWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3Nzk5NDMsImV4cCI6MjA5NjM1NTk0M30.gypmu5KomL4frQ8_cMURj803IrL2IPegni5XvKxXHNw";
     const SUPABASE_TABLE = "trades";
@@ -1371,6 +1438,13 @@
     const scoreDateLabel = document.querySelector("#scoreDateLabel");
     const scoreReasons = document.querySelector("#scoreReasons");
     const behaviorInsights = document.querySelector("#behaviorInsights");
+    const dailyReviewDateLabel = document.querySelector("#dailyReviewDateLabel");
+    const dailyReviewBadge = document.querySelector("#dailyReviewBadge");
+    const dailyReviewMetrics = document.querySelector("#dailyReviewMetrics");
+    const dailyReviewAutoSummary = document.querySelector("#dailyReviewAutoSummary");
+    const dailyReviewText = document.querySelector("#dailyReviewText");
+    const dailyReviewSaveStatus = document.querySelector("#dailyReviewSaveStatus");
+    const saveDailyReview = document.querySelector("#saveDailyReview");
     const stage50 = document.querySelector("#stage50");
     const stage100 = document.querySelector("#stage100");
     const waitingTimer = document.querySelector("#waitingTimer");
@@ -1401,6 +1475,7 @@
     const positionSize = document.querySelector("#positionSize");
 
     let trades = loadTrades();
+    let dailyReviews = loadDailyReviews();
     let authSession = loadAuthSession();
     let reminderTimer = null;
     let marketClockTimer = null;
@@ -1428,6 +1503,7 @@
     document.querySelector("#logoutButton").addEventListener("click", logout);
     confirmStatement.addEventListener("click", enterAppAfterStatement);
     reminderToggle.addEventListener("click", toggleMarketReminder);
+    saveDailyReview.addEventListener("click", saveSelectedDailyReview);
     recordEntryButton.addEventListener("click", recordEntryTime);
     recordExitButton.addEventListener("click", recordExitTime);
     tabButtons.forEach((button) => {
@@ -1618,6 +1694,7 @@
     [dateInput, resultInput, followedRulesInput, emotionInput, positionSize].forEach((input) => {
       input.addEventListener("change", updateRiskPanel);
     });
+    dateInput.addEventListener("change", renderSelectedDateAnalysis);
     window.addEventListener("resize", () => {
       if (!views.analysis.classList.contains("hidden")) renderAnalysisChart();
     });
@@ -1626,11 +1703,18 @@
       renderStats();
       renderWaitingBoard();
       renderMonthlyCalendar();
+      renderDailyReview();
       renderTable();
       renderAnalysisChart();
       renderDailyScore();
       renderBehaviorInsights();
       renderStageAnalysis();
+      updateRiskPanel();
+    }
+
+    function renderSelectedDateAnalysis() {
+      renderDailyScore();
+      renderDailyReview();
       updateRiskPanel();
     }
 
@@ -2014,6 +2098,71 @@
       if (!reasons.length) reasons.push("今日记录暂未触发纪律扣分项。");
       const label = value >= 80 ? "纪律良好" : value >= 60 ? "需要警惕" : "建议停手复盘";
       return { value, label, reasons };
+    }
+
+    function renderDailyReview() {
+      const date = dateInput.value;
+      const dayTrades = getTradesForDate(date);
+      const score = getDailyDisciplineScore(dayTrades);
+      const closed = dayTrades.filter((trade) => Number.isFinite(getPnl(trade)));
+      const wins = closed.filter((trade) => getPnl(trade) > 0);
+      const losses = closed.filter((trade) => getPnl(trade) < 0);
+      const pnl = sum(closed.map(getPnl));
+      const violations = getDailyViolationCount(dayTrades);
+      const savedReview = dailyReviews[date] || "";
+
+      dailyReviewDateLabel.textContent = `${date || "当前日期"} 盘后快速总结`;
+      dailyReviewBadge.textContent = savedReview ? "已复盘" : "待复盘";
+      dailyReviewBadge.style.color = savedReview ? "var(--green)" : "var(--yellow)";
+      dailyReviewMetrics.innerHTML = [
+        buildDailyReviewMetric("交易次数", dayTrades.length),
+        buildDailyReviewMetric("胜 / 负", `${wins.length} / ${losses.length}`),
+        buildDailyReviewMetric("纪律分", `${score.value}%`, score.value >= 80 ? "profit" : score.value >= 60 ? "flat" : "loss"),
+        buildDailyReviewMetric("当日盈亏", money.format(pnl), getPnlClass(pnl))
+      ].join("");
+      dailyReviewAutoSummary.innerHTML = buildDailyReviewSummary(date, dayTrades, score, pnl, violations);
+      dailyReviewText.value = savedReview;
+      dailyReviewSaveStatus.textContent = savedReview ? "已保存本日复盘" : "未保存";
+    }
+
+    function buildDailyReviewMetric(label, value, valueClass = "") {
+      return `
+        <div class="daily-review-card">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value ${valueClass}">${escapeHtml(value)}</div>
+        </div>
+      `;
+    }
+
+    function buildDailyReviewSummary(date, dayTrades, score, pnl, violations) {
+      if (!dayTrades.length) {
+        return "今日没有交易记录。若这是因为没有系统信号，那么等待本身就是完成纪律。";
+      }
+
+      const closed = dayTrades.filter((trade) => Number.isFinite(getPnl(trade)));
+      const bestTrade = closed.length ? closed.reduce((best, trade) => getPnl(trade) > getPnl(best) ? trade : best, closed[0]) : null;
+      const worstTrade = closed.length ? closed.reduce((worst, trade) => getPnl(trade) < getPnl(worst) ? trade : worst, closed[0]) : null;
+      const lines = [
+        `${date} 共记录 ${dayTrades.length} 笔交易，纪律分 ${score.value}%，当日盈亏 ${money.format(pnl)}。`,
+        `违规交易 ${violations} 笔；${score.reasons[0] || "今日记录暂未触发纪律扣分项。"}`,
+        bestTrade ? `最好的一笔：${bestTrade.tradeType}，盈亏 ${formatPnl(getPnl(bestTrade))}。` : "暂无已平仓交易，先完成记录闭环。",
+        worstTrade && worstTrade !== bestTrade ? `最需要复盘的一笔：${worstTrade.tradeType}，盈亏 ${formatPnl(getPnl(worstTrade))}。` : "今天没有明显拖累账户的已平仓交易。"
+      ];
+      return lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
+    }
+
+    function saveSelectedDailyReview() {
+      const date = dateInput.value;
+      if (!date) {
+        alert("请先选择日期。");
+        return;
+      }
+
+      dailyReviews[date] = cleanText(dailyReviewText.value);
+      saveDailyReviews();
+      renderDailyReview();
+      dailyReviewSaveStatus.textContent = "刚刚保存";
+      showInPageReminder("每日复盘已保存", `${date} 的盘后总结已保存到本机浏览器。`);
     }
 
     function renderBehaviorInsights() {
@@ -3009,6 +3158,19 @@
 
     function saveLocalTrades() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(trades));
+    }
+
+    function loadDailyReviews() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DAILY_REVIEW_STORAGE_KEY) || "{}");
+        return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveDailyReviews() {
+      localStorage.setItem(DAILY_REVIEW_STORAGE_KEY, JSON.stringify(dailyReviews));
     }
 
     function normalizeTrade(trade) {
