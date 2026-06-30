@@ -295,6 +295,106 @@
       font-size: 13px;
     }
 
+    .calendar-panel {
+      margin-bottom: 18px;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .calendar-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .calendar-summary {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .calendar-weekday {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      text-align: center;
+    }
+
+    .calendar-day {
+      min-height: 104px;
+      padding: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      align-content: space-between;
+      gap: 8px;
+    }
+
+    .calendar-day.empty {
+      visibility: hidden;
+    }
+
+    .calendar-day.today {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(97, 165, 255, 0.35) inset;
+    }
+
+    .calendar-day.rest {
+      background: rgba(142, 160, 182, 0.08);
+      color: var(--muted);
+    }
+
+    .calendar-day.warn {
+      border-color: rgba(247, 201, 72, 0.5);
+      background: rgba(247, 201, 72, 0.08);
+    }
+
+    .calendar-day.bad {
+      border-color: rgba(255, 107, 107, 0.55);
+      background: rgba(255, 107, 107, 0.08);
+    }
+
+    .calendar-date {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .calendar-score {
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 840;
+      color: var(--green);
+    }
+
+    .calendar-day.warn .calendar-score {
+      color: var(--yellow);
+    }
+
+    .calendar-day.bad .calendar-score {
+      color: var(--red);
+    }
+
+    .calendar-note {
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 18px;
+    }
+
     .risk-panel,
     .score-panel,
     .insight-panel {
@@ -759,6 +859,36 @@
         padding: 14px;
       }
 
+      .calendar-panel {
+        padding: 12px;
+      }
+
+      .calendar-header {
+        flex-direction: column;
+      }
+
+      .calendar-summary {
+        text-align: left;
+      }
+
+      .calendar-grid {
+        gap: 5px;
+      }
+
+      .calendar-day {
+        min-height: 82px;
+        padding: 7px;
+      }
+
+      .calendar-score {
+        font-size: 18px;
+      }
+
+      .calendar-date,
+      .calendar-note {
+        font-size: 11px;
+      }
+
       .card {
         min-height: 80px;
       }
@@ -994,6 +1124,16 @@
         <div class="card"><div class="label">盈亏比</div><div class="value" id="rewardRisk">0.00</div></div>
         <div class="card"><div class="label">连续亏损次数</div><div class="value" id="lossStreak">0</div></div>
       </div>
+      <div class="calendar-panel" aria-label="月度纪律日历">
+        <div class="calendar-header">
+          <div>
+            <h2 id="monthlyCalendarTitle">月度纪律日历</h2>
+            <div class="tiny">按美东日期统计；休息日不计入纪律完成度。</div>
+          </div>
+          <div class="calendar-summary" id="monthlyCalendarSummary">读取中</div>
+        </div>
+        <div class="calendar-grid" id="monthlyCalendarGrid"></div>
+      </div>
       <div class="chart-panel">
         <div class="chart-header">
           <div>
@@ -1113,6 +1253,9 @@
     };
     const disciplineChart = document.querySelector("#disciplineChart");
     const chartSummary = document.querySelector("#chartSummary");
+    const monthlyCalendarTitle = document.querySelector("#monthlyCalendarTitle");
+    const monthlyCalendarSummary = document.querySelector("#monthlyCalendarSummary");
+    const monthlyCalendarGrid = document.querySelector("#monthlyCalendarGrid");
     const riskPanel = document.querySelector("#riskPanel");
     const riskTitle = document.querySelector("#riskTitle");
     const riskLevel = document.querySelector("#riskLevel");
@@ -1375,6 +1518,7 @@
     function render() {
       renderStats();
       renderWaitingBoard();
+      renderMonthlyCalendar();
       renderTable();
       renderAnalysisChart();
       renderDailyScore();
@@ -1466,6 +1610,147 @@
       const minutes = Math.floor((totalSeconds % 3600) / 60);
       const seconds = totalSeconds % 60;
       return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function renderMonthlyCalendar() {
+      const et = getEasternTimeParts(new Date());
+      const year = Number(et.year);
+      const month = Number(et.month);
+      const todayKey = getEtDateKey(et);
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+      const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
+      const cells = weekdayLabels.map((label) => `<div class="calendar-weekday">${label}</div>`);
+
+      for (let index = 0; index < firstWeekday; index += 1) {
+        cells.push('<div class="calendar-day empty"></div>');
+      }
+
+      let tradingDays = 0;
+      let restDays = 0;
+      let scoreTotal = 0;
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+        const restReason = getMarketRestDayReason(year, month, day, weekday);
+        const dayTrades = getTradesForDate(dateKey);
+
+        if (restReason) {
+          restDays += 1;
+          cells.push(`
+            <div class="calendar-day rest ${dateKey === todayKey ? "today" : ""}">
+              <div class="calendar-date"><span>${day}</span><span>休息日</span></div>
+              <div class="calendar-score">休</div>
+              <div class="calendar-note">${escapeHtml(restReason)}</div>
+            </div>
+          `);
+          continue;
+        }
+
+        const score = getDailyDisciplineScore(dayTrades);
+        const scoreClass = score.value >= 80 ? "good" : score.value >= 60 ? "warn" : "bad";
+        tradingDays += 1;
+        scoreTotal += score.value;
+        cells.push(`
+          <div class="calendar-day ${scoreClass} ${dateKey === todayKey ? "today" : ""}">
+            <div class="calendar-date"><span>${day}</span><span>${dayTrades.length} 笔</span></div>
+            <div class="calendar-score">${score.value}%</div>
+            <div class="calendar-note">${escapeHtml(score.label)}</div>
+          </div>
+        `);
+      }
+
+      const averageScore = tradingDays ? Math.round(scoreTotal / tradingDays) : 100;
+      monthlyCalendarTitle.textContent = `${year}年${month}月纪律日历`;
+      monthlyCalendarSummary.textContent = `交易日 ${tradingDays} 天｜平均完成度 ${averageScore}%｜休息日 ${restDays} 天`;
+      monthlyCalendarGrid.innerHTML = cells.join("");
+    }
+
+    function getMarketRestDayReason(year, month, day, weekday) {
+      if (weekday === 0 || weekday === 6) return "周末";
+
+      const key = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const holidays = getMarketHolidayMap(year);
+      return holidays.get(key) || "";
+    }
+
+    function getMarketHolidayMap(year) {
+      const holidays = new Map();
+      addObservedFixedHoliday(holidays, year, 1, 1, "New Year's Day");
+      holidays.set(formatDateKey(year, 1, getNthWeekdayOfMonth(year, 1, 1, 3)), "MLK Day");
+      holidays.set(formatDateKey(year, 2, getNthWeekdayOfMonth(year, 2, 1, 3)), "Presidents' Day");
+      holidays.set(formatDateKey(year, getEasterMonthDay(year).month, getEasterMonthDay(year).day - 2), "Good Friday");
+      holidays.set(formatDateKey(year, 5, getLastWeekdayOfMonth(year, 5, 1)), "Memorial Day");
+      addObservedFixedHoliday(holidays, year, 6, 19, "Juneteenth");
+      addObservedFixedHoliday(holidays, year, 7, 4, "Independence Day");
+      holidays.set(formatDateKey(year, 9, getNthWeekdayOfMonth(year, 9, 1, 1)), "Labor Day");
+      holidays.set(formatDateKey(year, 11, getNthWeekdayOfMonth(year, 11, 4, 4)), "Thanksgiving");
+      addObservedFixedHoliday(holidays, year, 12, 25, "Christmas");
+      return holidays;
+    }
+
+    function addObservedFixedHoliday(holidays, year, month, day, label) {
+      const observed = getObservedFixedHoliday(year, month, day);
+      if (observed.year === year) {
+        holidays.set(formatDateKey(observed.year, observed.month, observed.day), label);
+      }
+    }
+
+    function getObservedFixedHoliday(year, month, day) {
+      const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+      if (weekday === 6) {
+        const observed = new Date(Date.UTC(year, month - 1, day - 1));
+        return { year: observed.getUTCFullYear(), month: observed.getUTCMonth() + 1, day: observed.getUTCDate() };
+      }
+      if (weekday === 0) {
+        const observed = new Date(Date.UTC(year, month - 1, day + 1));
+        return { year: observed.getUTCFullYear(), month: observed.getUTCMonth() + 1, day: observed.getUTCDate() };
+      }
+      return { year, month, day };
+    }
+
+    function getNthWeekdayOfMonth(year, month, weekday, nth) {
+      let count = 0;
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        if (new Date(Date.UTC(year, month - 1, day)).getUTCDay() === weekday) {
+          count += 1;
+          if (count === nth) return day;
+        }
+      }
+      return 1;
+    }
+
+    function getLastWeekdayOfMonth(year, month, weekday) {
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      for (let day = daysInMonth; day >= 1; day -= 1) {
+        if (new Date(Date.UTC(year, month - 1, day)).getUTCDay() === weekday) return day;
+      }
+      return daysInMonth;
+    }
+
+    function getEasterMonthDay(year) {
+      const a = year % 19;
+      const b = Math.floor(year / 100);
+      const c = year % 100;
+      const d = Math.floor(b / 4);
+      const e = b % 4;
+      const f = Math.floor((b + 8) / 25);
+      const g = Math.floor((b - f + 1) / 3);
+      const h = (19 * a + b - d - g + 15) % 30;
+      const i = Math.floor(c / 4);
+      const k = c % 4;
+      const l = (32 + 2 * e + 2 * i - h - k) % 7;
+      const m = Math.floor((a + 11 * h + 22 * l) / 451);
+      const month = Math.floor((h + l - 7 * m + 114) / 31);
+      const day = ((h + l - 7 * m + 114) % 31) + 1;
+      return { month, day };
+    }
+
+    function formatDateKey(year, month, day) {
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
     }
 
     function renderAnalysisChart() {
