@@ -60,6 +60,45 @@
       margin-top: 18px;
     }
 
+    .statement-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .statement-card {
+      width: min(820px, 100%);
+      max-height: calc(100vh - 40px);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 16px;
+      padding: 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .statement-content {
+      overflow: auto;
+      padding: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+    }
+
+    .statement-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .login-error {
       display: none;
       color: #ffd6d6;
@@ -915,6 +954,71 @@
     </div>
   </section>
 
+  <section class="statement-screen hidden" id="statementScreen">
+    <div class="statement-card">
+      <div>
+        <h1>交易员宣言</h1>
+        <p class="subtitle">确认今天只允许系统下单，不允许情绪下单。</p>
+      </div>
+      <div class="statement-content" id="tradingStatement">
+交易员宣言（Trading Statement）
+我不是来预测市场的。
+我是来执行已经验证过的交易系统。
+
+市场没有义务按照我的想法运行，我也不需要知道下一分钟会发生什么。
+我唯一需要做的，就是当系统出现信号时执行；当系统没有信号时等待。
+
+【我的原则】
+1. 我不是股神。
+   我不需要买在最低点，也不需要卖在最高点。
+   我只赚属于我交易系统的那一段利润。
+
+2. 错过机会不是亏损，违反纪律才是真正的亏损。
+
+3. 账户余额不是我的价值。
+   今天盈利，不代表我更聪明；
+   今天亏损，不代表我更失败；
+   它只是统计结果，不是对我的评价。
+
+4. 一笔交易不会决定我的账户。
+   真正决定账户的是未来1000笔交易是否坚持同一套系统。
+
+5. 交易开始前，我负责思考；
+   交易开始后，我负责执行。
+   不预测，不幻想，不临时修改规则。
+
+6. 等待，也是交易。
+   没有信号时，什么都不做，就是在保护账户。
+
+7. 我的竞争对手不是市场，而是：
+□ 全仓
+□ 提前进场
+□ 切换周期
+□ 撤止损
+□ 撤止盈
+□ 情绪化加仓
+
+【今天的工作】
+□ 等待30分钟MACD确认
+□ 固定仓位（1/3）
+□ 固定止损
+□ 固定止盈
+□ 不切换到3分钟
+□ 不因为账户余额修改计划
+□ 收盘后复盘
+
+【我的目标】
+不是今天赚最多的钱，
+而是十年后，仍然是一名稳定盈利、严格执行纪律的交易员。
+
+今天只允许系统下单，不允许情绪下单。
+      </div>
+      <div class="statement-actions">
+        <button class="primary" id="confirmStatement" type="button">我已确认，进入系统</button>
+      </div>
+    </div>
+  </section>
+
   <main class="app hidden" id="app">
     <header>
       <div>
@@ -1232,9 +1336,11 @@
     const DAILY_REMINDER_TOTAL = 14;
     const app = document.querySelector("#app");
     const loginScreen = document.querySelector("#loginScreen");
+    const statementScreen = document.querySelector("#statementScreen");
     const loginForm = document.querySelector("#loginForm");
     const loginError = document.querySelector("#loginError");
     const loginButton = document.querySelector("#loginButton");
+    const confirmStatement = document.querySelector("#confirmStatement");
     const reminderToggle = document.querySelector("#reminderToggle");
     const reminderStatus = document.querySelector("#reminderStatus");
     const marketTimeStatus = document.querySelector("#marketTimeStatus");
@@ -1320,6 +1426,7 @@
     });
 
     document.querySelector("#logoutButton").addEventListener("click", logout);
+    confirmStatement.addEventListener("click", enterAppAfterStatement);
     reminderToggle.addEventListener("click", toggleMarketReminder);
     recordEntryButton.addEventListener("click", recordEntryTime);
     recordExitButton.addEventListener("click", recordExitTime);
@@ -2371,8 +2478,7 @@
 
       try {
         await ensureAuthSession();
-        showApp();
-        syncFromSupabase();
+        showStatement();
       } catch (error) {
         console.error(error);
         clearAuthSession();
@@ -2393,8 +2499,7 @@
         authSession = buildAuthSession(session);
         saveAuthSession();
         loginForm.reset();
-        showApp();
-        await syncFromSupabase();
+        showStatement();
       } catch (error) {
         console.error(error);
         setLoginError("登录失败，请检查邮箱、密码或 Supabase Auth 用户设置。");
@@ -2414,8 +2519,29 @@
       showLogin("已退出登录。");
     }
 
+    function showStatement() {
+      stopMarketReminder();
+      stopMarketClock();
+      stopWaitingTimer();
+      loginScreen.classList.add("hidden");
+      app.classList.add("hidden");
+      statementScreen.classList.remove("hidden");
+      setLoginError("");
+    }
+
+    async function enterAppAfterStatement() {
+      confirmStatement.disabled = true;
+      try {
+        showApp();
+        await syncFromSupabase();
+      } finally {
+        confirmStatement.disabled = false;
+      }
+    }
+
     function showApp() {
       loginScreen.classList.add("hidden");
+      statementScreen.classList.add("hidden");
       app.classList.remove("hidden");
       setDateToToday();
       render();
@@ -2428,6 +2554,7 @@
 
     function showLogin(message = "") {
       app.classList.add("hidden");
+      statementScreen.classList.add("hidden");
       loginScreen.classList.remove("hidden");
       setLoginError(message);
     }
