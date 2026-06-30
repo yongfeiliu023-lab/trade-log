@@ -1130,16 +1130,27 @@
 
         <div class="field full">
           <label>交易信号</label>
+          <div class="checks">
+            <div class="field">
+              <label for="dailyMa7Position">日线：价格在 MA7 的哪里？</label>
+              <select id="dailyMa7Position" name="dailyMa7Position" required>
+                <option value="上方">上方</option>
+                <option value="附近">附近</option>
+                <option value="下方">下方</option>
+              </select>
+            </div>
+          </div>
+          <label>30mins</label>
           <div class="checks" id="signalChecks">
-            <label class="check"><input id="macdSignal" name="macdSignal" type="checkbox"> MACD</label>
-            <label class="check"><input id="kdjSignal" name="kdjSignal" type="checkbox"> KDJ</label>
-            <label class="check"><input id="maSignal" name="maSignal" type="checkbox"> MA</label>
+            <label class="check"><input id="macdSignal" name="macdSignal" type="checkbox"> MACD 交叉</label>
+            <label class="check"><input id="kdjSignal" name="kdjSignal" type="checkbox"> KDJ 交叉</label>
+            <label class="check"><input id="maSignal" name="maSignal" type="checkbox"> MA 交叉</label>
           </div>
         </div>
 
         <div class="field full">
           <div class="trade-gate">
-            <span class="tiny" id="approveHint">MACD、KDJ、MA 全部勾选后出现交易设置。</span>
+            <span class="tiny" id="approveHint">30mins 的 MACD、KDJ、MA 交叉全部勾选后出现交易设置。</span>
             <span class="approve-badge hidden" id="approveBadge">APPROVE</span>
           </div>
         </div>
@@ -1574,6 +1585,7 @@
         result: data.get("result"),
         followedRules: data.get("followedRules"),
         emotion: data.get("emotion"),
+        dailyMa7Position: data.get("dailyMa7Position"),
         macdSignal: data.has("macdSignal"),
         kdjSignal: data.has("kdjSignal"),
         maSignal: data.has("maSignal"),
@@ -1667,7 +1679,7 @@
       }
 
       const headers = [
-        "日期", "标的", "交易类型", "MACD", "KDJ", "MA", "Approve", "入场价格", "入场时间", "止盈价格+30%", "止损价格-30%",
+        "日期", "标的", "交易类型", "日线MA7位置", "30mins MACD交叉", "30mins KDJ交叉", "30mins MA交叉", "Approve", "入场价格", "入场时间", "止盈价格+30%", "止损价格-30%",
         "仓位选择", "实际出场价格", "出场时间", "持仓时间", "盈亏", "结果", "是否按规则执行", "情绪状态",
         "是否提前卖出", "是否移动止损", "是否加仓", "备注"
       ];
@@ -1675,6 +1687,7 @@
         trade.date,
         trade.symbol,
         trade.tradeType,
+        trade.dailyMa7Position || "",
         yesNo(trade.macdSignal),
         yesNo(trade.kdjSignal),
         yesNo(trade.maSignal),
@@ -2497,7 +2510,7 @@
         reviewSection.classList.add("hidden");
       }
       approveBadge.classList.toggle("hidden", !approved);
-      approveHint.textContent = approved ? "三项信号已确认，可以记录交易。" : "MACD、KDJ、MA 全部勾选后出现交易设置。";
+      approveHint.textContent = approved ? "30mins 三项交叉已确认，可以记录交易。" : "30mins 的 MACD、KDJ、MA 交叉全部勾选后出现交易设置。";
       saveTrade.disabled = !approved || reviewSection.classList.contains("hidden");
       recordEntryButton.disabled = !approved;
       [tradeType, entryPrice, entryTime, takeProfitPrice, stopLossPrice, positionSize].forEach((input) => {
@@ -2635,9 +2648,10 @@
 
     function getSignalsLabel(trade) {
       const signals = [];
-      if (trade.macdSignal) signals.push("MACD");
-      if (trade.kdjSignal) signals.push("KDJ");
-      if (trade.maSignal) signals.push("MA");
+      if (trade.dailyMa7Position) signals.push(`日线MA7:${trade.dailyMa7Position}`);
+      if (trade.macdSignal) signals.push("MACD交叉");
+      if (trade.kdjSignal) signals.push("KDJ交叉");
+      if (trade.maSignal) signals.push("MA交叉");
       return signals.length ? signals.join(" / ") : "-";
     }
 
@@ -3219,6 +3233,7 @@
         createdAt: trade.createdAt || new Date().toISOString(),
         entryTime: trade.entryTime || "",
         exitTime: trade.exitTime || "",
+        dailyMa7Position: trade.dailyMa7Position || "",
         positionSize: trade.positionSize || "1/3",
         approved: Boolean(trade.approved),
         macdSignal: Boolean(trade.macdSignal),
