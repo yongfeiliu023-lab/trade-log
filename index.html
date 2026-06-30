@@ -591,6 +591,12 @@
       line-height: 1.65;
     }
 
+    .daily-review-inputs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
     .daily-review-actions {
       display: flex;
       justify-content: space-between;
@@ -966,6 +972,10 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
+      .daily-review-inputs {
+        grid-template-columns: 1fr;
+      }
+
       .calendar-score {
         font-size: 18px;
       }
@@ -1325,15 +1335,29 @@
         <div class="score-row">
           <div>
             <h2>每日盘后复盘</h2>
-            <div class="tiny" id="dailyReviewDateLabel">按当前选择日期生成快速总结</div>
+            <div class="tiny" id="dailyReviewDateLabel">按当前选择日期手动填写盘后总结</div>
           </div>
           <span class="score-badge" id="dailyReviewBadge">待复盘</span>
         </div>
         <div class="daily-review-grid" id="dailyReviewMetrics"></div>
-        <div class="daily-review-summary" id="dailyReviewAutoSummary">暂无交易记录，今天的最好交易可能就是等待。</div>
-        <div class="field">
-          <label for="dailyReviewText">盘后快速总结</label>
-          <textarea id="dailyReviewText" placeholder="今天我做对了什么？哪里违反纪律？明天只改一个动作是什么？"></textarea>
+        <div class="daily-review-summary">盘后只写事实：今天做对了什么、哪里没有执行、明天只改一个动作。</div>
+        <div class="daily-review-inputs">
+          <div class="field">
+            <label for="dailyReviewGood">今天做对了什么</label>
+            <textarea id="dailyReviewGood" placeholder="例如：没有追高；等到 MACD 确认；按 1/3 仓位执行。"></textarea>
+          </div>
+          <div class="field">
+            <label for="dailyReviewViolation">哪里违反纪律</label>
+            <textarea id="dailyReviewViolation" placeholder="例如：提前进场；移动止损；看到余额变化后改变计划。"></textarea>
+          </div>
+          <div class="field">
+            <label for="dailyReviewAction">明天只改一个动作</label>
+            <textarea id="dailyReviewAction" placeholder="例如：没有 30 分钟 MACD 确认就不下单。"></textarea>
+          </div>
+          <div class="field">
+            <label for="dailyReviewText">盘后快速总结</label>
+            <textarea id="dailyReviewText" placeholder="用 2-3 句话总结今天。"></textarea>
+          </div>
         </div>
         <div class="daily-review-actions">
           <span class="tiny" id="dailyReviewSaveStatus">未保存</span>
@@ -1441,7 +1465,9 @@
     const dailyReviewDateLabel = document.querySelector("#dailyReviewDateLabel");
     const dailyReviewBadge = document.querySelector("#dailyReviewBadge");
     const dailyReviewMetrics = document.querySelector("#dailyReviewMetrics");
-    const dailyReviewAutoSummary = document.querySelector("#dailyReviewAutoSummary");
+    const dailyReviewGood = document.querySelector("#dailyReviewGood");
+    const dailyReviewViolation = document.querySelector("#dailyReviewViolation");
+    const dailyReviewAction = document.querySelector("#dailyReviewAction");
     const dailyReviewText = document.querySelector("#dailyReviewText");
     const dailyReviewSaveStatus = document.querySelector("#dailyReviewSaveStatus");
     const saveDailyReview = document.querySelector("#saveDailyReview");
@@ -2108,21 +2134,23 @@
       const wins = closed.filter((trade) => getPnl(trade) > 0);
       const losses = closed.filter((trade) => getPnl(trade) < 0);
       const pnl = sum(closed.map(getPnl));
-      const violations = getDailyViolationCount(dayTrades);
-      const savedReview = dailyReviews[date] || "";
+      const savedReview = getDailyReviewForDate(date);
+      const hasReview = hasDailyReviewContent(savedReview);
 
       dailyReviewDateLabel.textContent = `${date || "当前日期"} 盘后快速总结`;
-      dailyReviewBadge.textContent = savedReview ? "已复盘" : "待复盘";
-      dailyReviewBadge.style.color = savedReview ? "var(--green)" : "var(--yellow)";
+      dailyReviewBadge.textContent = hasReview ? "已复盘" : "待复盘";
+      dailyReviewBadge.style.color = hasReview ? "var(--green)" : "var(--yellow)";
       dailyReviewMetrics.innerHTML = [
         buildDailyReviewMetric("交易次数", dayTrades.length),
         buildDailyReviewMetric("胜 / 负", `${wins.length} / ${losses.length}`),
         buildDailyReviewMetric("纪律分", `${score.value}%`, score.value >= 80 ? "profit" : score.value >= 60 ? "flat" : "loss"),
         buildDailyReviewMetric("当日盈亏", money.format(pnl), getPnlClass(pnl))
       ].join("");
-      dailyReviewAutoSummary.innerHTML = buildDailyReviewSummary(date, dayTrades, score, pnl, violations);
-      dailyReviewText.value = savedReview;
-      dailyReviewSaveStatus.textContent = savedReview ? "已保存本日复盘" : "未保存";
+      dailyReviewGood.value = savedReview.good;
+      dailyReviewViolation.value = savedReview.violation;
+      dailyReviewAction.value = savedReview.action;
+      dailyReviewText.value = savedReview.summary;
+      dailyReviewSaveStatus.textContent = hasReview ? "已保存本日复盘" : "未保存";
     }
 
     function buildDailyReviewMetric(label, value, valueClass = "") {
@@ -2134,21 +2162,26 @@
       `;
     }
 
-    function buildDailyReviewSummary(date, dayTrades, score, pnl, violations) {
-      if (!dayTrades.length) {
-        return "今日没有交易记录。若这是因为没有系统信号，那么等待本身就是完成纪律。";
+    function getDailyReviewForDate(date) {
+      const saved = dailyReviews[date];
+      if (typeof saved === "string") {
+        return { good: "", violation: "", action: "", summary: saved };
       }
 
-      const closed = dayTrades.filter((trade) => Number.isFinite(getPnl(trade)));
-      const bestTrade = closed.length ? closed.reduce((best, trade) => getPnl(trade) > getPnl(best) ? trade : best, closed[0]) : null;
-      const worstTrade = closed.length ? closed.reduce((worst, trade) => getPnl(trade) < getPnl(worst) ? trade : worst, closed[0]) : null;
-      const lines = [
-        `${date} 共记录 ${dayTrades.length} 笔交易，纪律分 ${score.value}%，当日盈亏 ${money.format(pnl)}。`,
-        `违规交易 ${violations} 笔；${score.reasons[0] || "今日记录暂未触发纪律扣分项。"}`,
-        bestTrade ? `最好的一笔：${bestTrade.tradeType}，盈亏 ${formatPnl(getPnl(bestTrade))}。` : "暂无已平仓交易，先完成记录闭环。",
-        worstTrade && worstTrade !== bestTrade ? `最需要复盘的一笔：${worstTrade.tradeType}，盈亏 ${formatPnl(getPnl(worstTrade))}。` : "今天没有明显拖累账户的已平仓交易。"
-      ];
-      return lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
+      if (saved && typeof saved === "object") {
+        return {
+          good: cleanText(saved.good),
+          violation: cleanText(saved.violation),
+          action: cleanText(saved.action),
+          summary: cleanText(saved.summary)
+        };
+      }
+
+      return { good: "", violation: "", action: "", summary: "" };
+    }
+
+    function hasDailyReviewContent(review) {
+      return Boolean(review.good || review.violation || review.action || review.summary);
     }
 
     function saveSelectedDailyReview() {
@@ -2158,7 +2191,12 @@
         return;
       }
 
-      dailyReviews[date] = cleanText(dailyReviewText.value);
+      dailyReviews[date] = {
+        good: cleanText(dailyReviewGood.value),
+        violation: cleanText(dailyReviewViolation.value),
+        action: cleanText(dailyReviewAction.value),
+        summary: cleanText(dailyReviewText.value)
+      };
       saveDailyReviews();
       renderDailyReview();
       dailyReviewSaveStatus.textContent = "刚刚保存";
