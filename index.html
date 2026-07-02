@@ -722,6 +722,27 @@
       font-weight: 760;
     }
 
+    .import-panel {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .import-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .import-status {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -1118,8 +1139,18 @@
     </nav>
 
     <section class="section view" id="tradeView">
-      <h2>新增交易记录</h2>
-      <form id="tradeForm">
+      <h2>交易导入</h2>
+      <div class="import-panel">
+        <div>
+          <div class="trade-box-title">Google Sheet 自动导入</div>
+          <div class="tiny">交易明细来自 Simulation Ledger。登录并确认宣言后每天自动导入一次，也可以手动同步。</div>
+        </div>
+        <div class="import-actions">
+          <button class="primary" id="importSheetMain" type="button">从 Google Sheet 同步</button>
+          <span class="import-status" id="sheetImportStatus">等待导入</span>
+        </div>
+      </div>
+      <form id="tradeForm" class="hidden">
         <div class="field">
           <label for="date">日期</label>
           <input id="date" name="date" type="date" required>
@@ -1458,6 +1489,7 @@
     const tableBody = document.querySelector("#tradeTable");
     const emptyState = document.querySelector("#emptyState");
     const syncStatus = document.querySelector("#syncStatus");
+    const sheetImportStatus = document.querySelector("#sheetImportStatus");
     const tabButtons = [...document.querySelectorAll("[data-tab]")];
     const views = {
       trade: document.querySelector("#tradeView"),
@@ -1546,6 +1578,7 @@
     confirmStatement.addEventListener("click", enterAppAfterStatement);
     reminderToggle.addEventListener("click", toggleMarketReminder);
     document.querySelector("#importSheet").addEventListener("click", () => importGoogleSheetTrades(true));
+    document.querySelector("#importSheetMain").addEventListener("click", () => importGoogleSheetTrades(true));
     saveDailyReview.addEventListener("click", saveSelectedDailyReview);
     recordEntryButton.addEventListener("click", recordEntryTime);
     recordExitButton.addEventListener("click", recordExitTime);
@@ -3145,12 +3178,14 @@
     async function importGoogleSheetTrades(manual = false) {
       try {
         setSyncStatus("正在从 Google Sheet 导入数据...");
+        setSheetImportStatus("正在读取 Google Sheet...");
         const importedTrades = await fetchGoogleSheetTrades();
         const existingIds = new Set(trades.map((trade) => trade.id));
         const newTrades = importedTrades.filter((trade) => trade.date && !existingIds.has(trade.id));
 
         if (!newTrades.length) {
           setSyncStatus("Google Sheet 没有新的交易记录");
+          setSheetImportStatus(`无新记录｜表格共有 ${importedTrades.length} 笔`);
           if (manual) showInPageReminder("表格导入完成", "没有发现新的交易记录。");
           return true;
         }
@@ -3162,9 +3197,11 @@
         try {
           await Promise.all(newTrades.map(insertTradeToSupabase));
           setSyncStatus(`已从 Google Sheet 导入 ${newTrades.length} 笔并同步到 Supabase`);
+          setSheetImportStatus(`新增 ${newTrades.length} 笔｜已同步 Supabase`);
         } catch (error) {
           console.error(error);
           setSyncStatus(`已导入 ${newTrades.length} 笔到本地，Supabase 同步失败`);
+          setSheetImportStatus(`新增 ${newTrades.length} 笔｜Supabase 同步失败`);
         }
 
         showInPageReminder("表格导入完成", `新增 ${newTrades.length} 笔交易记录。`);
@@ -3172,11 +3209,16 @@
       } catch (error) {
         console.error(error);
         setSyncStatus("Google Sheet 导入失败");
+        setSheetImportStatus("导入失败，请检查表格权限或网络");
         if (manual) {
           alert(`Google Sheet 导入失败。\n请确认表格已公开或发布为可读取。\n\n${error.message}`);
         }
         return false;
       }
+    }
+
+    function setSheetImportStatus(message) {
+      sheetImportStatus.textContent = message;
     }
 
     async function fetchGoogleSheetTrades() {
