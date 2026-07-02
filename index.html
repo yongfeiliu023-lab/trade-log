@@ -1431,8 +1431,8 @@
     const DAILY_REVIEW_STORAGE_KEY = "trade-discipline-daily-reviews-v1";
     const SHEET_IMPORT_STORAGE_KEY = "trade-discipline-sheet-import-v1";
     const GOOGLE_SHEET_ID = "1GgPImNXT4YMo5dSYaIwiGWN7R5POpzTLoao8zeRuPjw";
-    const GOOGLE_SHEET_GID = "1975151087";
-    const GOOGLE_SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/export?format=csv&gid=${GOOGLE_SHEET_GID}`;
+    const GOOGLE_SHEET_NAME = "Simulation Ledger";
+    const GOOGLE_SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(GOOGLE_SHEET_NAME)}`;
     const SUPABASE_URL = "https://thakeglzlctbpxqfyqfv.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYWtlZ2x6bGN0YnB4cWZ5cWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3Nzk5NDMsImV4cCI6MjA5NjM1NTk0M30.gypmu5KomL4frQ8_cMURj803IrL2IPegni5XvKxXHNw";
     const SUPABASE_TABLE = "trades";
@@ -2613,6 +2613,7 @@
     }
 
     function getPnl(trade) {
+      if (Number.isFinite(trade.realizedPnl)) return trade.realizedPnl;
       if (!Number.isFinite(trade.entryPrice) || !Number.isFinite(trade.exitPrice)) return NaN;
       return trade.exitPrice - trade.entryPrice;
     }
@@ -3194,19 +3195,25 @@
 
     function mapSheetRowToTrade(headers, row) {
       const record = Object.fromEntries(headers.map((header, index) => [header, row[index] || ""]));
-      const date = parseSheetDate(getSheetValue(record, ["日期", "Date", "date", "交易日期"]));
+      const entryDateTime = getSheetValue(record, ["confirmed_et", "bar_start_et", "日期", "Date", "date", "交易日期"]);
+      const exitDateTime = getSheetValue(record, ["exit_time_et", "出场时间", "Exit Time", "exitTime"]);
+      const date = parseSheetDate(entryDateTime);
       const symbol = cleanText(getSheetValue(record, ["标的", "Symbol", "symbol"])) || "QQQ";
-      const tradeType = cleanText(getSheetValue(record, ["交易类型", "类型", "Trade Type", "tradeType"])) || "Call";
-      const entryPrice = toNumber(getSheetValue(record, ["入场价格", "入场", "Entry Price", "entryPrice"]));
-      const exitPrice = toNumber(getSheetValue(record, ["实际出场价格", "出场", "Exit Price", "exitPrice"]));
-      const entryTime = cleanText(getSheetValue(record, ["入场时间", "Entry Time", "entryTime"]));
-      const exitTime = cleanText(getSheetValue(record, ["出场时间", "Exit Time", "exitTime"]));
+      const rawTradeType = cleanText(getSheetValue(record, ["signal", "option_side", "交易类型", "类型", "Trade Type", "tradeType"]));
+      const tradeType = normalizeTradeType(rawTradeType);
+      const entryPrice = toNumber(getSheetValue(record, ["entry_price", "入场价格", "入场", "Entry Price", "entryPrice"]));
+      const exitPrice = toNumber(getSheetValue(record, ["exit_price", "实际出场价格", "出场", "Exit Price", "exitPrice"]));
+      const entryTime = parseSheetTime(getSheetValue(record, ["confirmed_et", "入场时间", "Entry Time", "entryTime"]));
+      const exitTime = parseSheetTime(exitDateTime);
       if (!date) return null;
       const macdSignal = parseSheetBoolean(getSheetValue(record, ["30mins MACD交叉", "MACD", "macdSignal"]));
       const kdjSignal = parseSheetBoolean(getSheetValue(record, ["30mins KDJ交叉", "KDJ", "kdjSignal"]));
       const maSignal = parseSheetBoolean(getSheetValue(record, ["30mins MA交叉", "MA", "maSignal"]));
-      const takeProfitPrice = toNumber(getSheetValue(record, ["止盈价格+30%", "止盈+30%", "takeProfitPrice"]));
-      const stopLossPrice = toNumber(getSheetValue(record, ["止损价格-30%", "止损-30%", "stopLossPrice"]));
+      const takeProfitPrice = toNumber(getSheetValue(record, ["take_profit_price", "止盈价格+30%", "止盈+30%", "takeProfitPrice"]));
+      const stopLossPrice = toNumber(getSheetValue(record, ["stop_loss_price", "止损价格-30%", "止损-30%", "stopLossPrice"]));
+      const realizedPnl = toNumber(getSheetValue(record, ["pnl_per_contract", "盈亏", "P/L", "realizedPnl"]));
+      const result = normalizeSheetResult(getSheetValue(record, ["exit_reason", "结果", "Result", "result"]));
+      const notes = buildSheetNotes(record);
 
       const seed = [
         date,
@@ -3216,7 +3223,7 @@
         entryTime,
         exitPrice,
         exitTime,
-        getSheetValue(record, ["备注", "Notes", "notes"])
+        getSheetValue(record, ["option_contract", "yahoo_symbol", "备注", "Notes", "notes"])
       ].join("|");
 
       return {
@@ -3233,7 +3240,8 @@
         positionSize: cleanText(getSheetValue(record, ["仓位选择", "仓位", "positionSize"])) || "1/3",
         exitPrice,
         exitTime,
-        result: cleanText(getSheetValue(record, ["结果", "Result", "result"])) || "未平仓",
+        realizedPnl,
+        result,
         followedRules: cleanText(getSheetValue(record, ["是否按规则执行", "规则", "followedRules"])) || "是",
         emotion: cleanText(getSheetValue(record, ["情绪状态", "情绪", "emotion"])) || "平静",
         macdSignal,
@@ -3243,7 +3251,7 @@
         soldEarly: parseSheetBoolean(getSheetValue(record, ["是否提前卖出", "提前卖", "soldEarly"])),
         movedStop: parseSheetBoolean(getSheetValue(record, ["是否移动止损", "移止损", "movedStop"])),
         addedPosition: parseSheetBoolean(getSheetValue(record, ["是否加仓", "加仓", "addedPosition"])),
-        notes: cleanText(getSheetValue(record, ["备注", "Notes", "notes"]))
+        notes
       };
     }
 
@@ -3262,6 +3270,36 @@
       match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       if (match) return `${match[3]}-${match[1].padStart(2, "0")}-${match[2].padStart(2, "0")}`;
       return "";
+    }
+
+    function parseSheetTime(value) {
+      const text = cleanText(value);
+      const match = text.match(/(\d{1,2}):(\d{2})/);
+      return match ? `${match[1].padStart(2, "0")}:${match[2]}` : "";
+    }
+
+    function normalizeTradeType(value) {
+      const text = cleanText(value).toLowerCase();
+      if (text.includes("put")) return "Put";
+      return "Call";
+    }
+
+    function normalizeSheetResult(value) {
+      const text = cleanText(value).toLowerCase();
+      if (["tp", "take profit", "profit", "止盈"].includes(text)) return "止盈";
+      if (["sl", "stop loss", "loss", "止损"].includes(text)) return "止损";
+      if (["manual", "手动平仓"].includes(text)) return "手动平仓";
+      return text ? cleanText(value) : "未平仓";
+    }
+
+    function buildSheetNotes(record) {
+      const parts = [
+        cleanText(getSheetValue(record, ["notes", "备注", "Notes"])),
+        cleanText(getSheetValue(record, ["action"])) ? `Action: ${cleanText(getSheetValue(record, ["action"]))}` : "",
+        cleanText(getSheetValue(record, ["option_contract"])) ? `Contract: ${cleanText(getSheetValue(record, ["option_contract"]))}` : "",
+        cleanText(getSheetValue(record, ["yahoo_symbol"])) ? `Yahoo: ${cleanText(getSheetValue(record, ["yahoo_symbol"]))}` : ""
+      ].filter(Boolean);
+      return parts.join("\n");
     }
 
     function parseSheetBoolean(value) {
@@ -3416,6 +3454,7 @@
         createdAt: trade.createdAt || new Date().toISOString(),
         entryTime: trade.entryTime || "",
         exitTime: trade.exitTime || "",
+        realizedPnl: Number.isFinite(Number(trade.realizedPnl)) ? Number(trade.realizedPnl) : NaN,
         dailyMa7Position: trade.dailyMa7Position || "",
         positionSize: trade.positionSize || "1/3",
         approved: Boolean(trade.approved),
