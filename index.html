@@ -743,6 +743,45 @@
       font-size: 13px;
     }
 
+    .quick-calculator {
+      margin-top: 18px;
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .calculator-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .calculator-card {
+      min-height: 96px;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .calculator-price {
+      margin-top: 6px;
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 840;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .calculator-diff {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -997,6 +1036,10 @@
         grid-template-columns: 1fr;
       }
 
+      .calculator-grid {
+        grid-template-columns: 1fr;
+      }
+
       .calendar-score {
         font-size: 18px;
       }
@@ -1148,6 +1191,33 @@
         <div class="import-actions">
           <button class="primary" id="importSheetMain" type="button">从 Google Sheet 同步</button>
           <span class="import-status" id="sheetImportStatus">等待导入</span>
+        </div>
+      </div>
+      <div class="quick-calculator">
+        <div>
+          <div class="trade-box-title">快速价格计算器</div>
+          <div class="tiny">输入期权价格，自动计算止盈和止损目标。</div>
+        </div>
+        <div class="field">
+          <label for="calculatorEntryPrice">当前 / 入场价格</label>
+          <input id="calculatorEntryPrice" type="number" min="0" step="0.01" placeholder="例如 4.99">
+        </div>
+        <div class="calculator-grid">
+          <div class="calculator-card">
+            <div class="label">止盈 +30%</div>
+            <div class="calculator-price profit" id="calculatorTp30">-</div>
+            <div class="calculator-diff" id="calculatorTp30Diff">价差 -</div>
+          </div>
+          <div class="calculator-card">
+            <div class="label">止盈 +50%</div>
+            <div class="calculator-price profit" id="calculatorTp50">-</div>
+            <div class="calculator-diff" id="calculatorTp50Diff">价差 -</div>
+          </div>
+          <div class="calculator-card">
+            <div class="label">止损 -30%</div>
+            <div class="calculator-price loss" id="calculatorSl30">-</div>
+            <div class="calculator-diff" id="calculatorSl30Diff">价差 -</div>
+          </div>
         </div>
       </div>
       <form id="tradeForm" class="hidden">
@@ -1490,6 +1560,13 @@
     const emptyState = document.querySelector("#emptyState");
     const syncStatus = document.querySelector("#syncStatus");
     const sheetImportStatus = document.querySelector("#sheetImportStatus");
+    const calculatorEntryPrice = document.querySelector("#calculatorEntryPrice");
+    const calculatorTp30 = document.querySelector("#calculatorTp30");
+    const calculatorTp30Diff = document.querySelector("#calculatorTp30Diff");
+    const calculatorTp50 = document.querySelector("#calculatorTp50");
+    const calculatorTp50Diff = document.querySelector("#calculatorTp50Diff");
+    const calculatorSl30 = document.querySelector("#calculatorSl30");
+    const calculatorSl30Diff = document.querySelector("#calculatorSl30Diff");
     const tabButtons = [...document.querySelectorAll("[data-tab]")];
     const views = {
       trade: document.querySelector("#tradeView"),
@@ -1579,6 +1656,7 @@
     reminderToggle.addEventListener("click", toggleMarketReminder);
     document.querySelector("#importSheet").addEventListener("click", () => importGoogleSheetTrades(true));
     document.querySelector("#importSheetMain").addEventListener("click", () => importGoogleSheetTrades(true));
+    calculatorEntryPrice.addEventListener("input", updateQuickCalculator);
     saveDailyReview.addEventListener("click", saveSelectedDailyReview);
     recordEntryButton.addEventListener("click", recordEntryTime);
     recordExitButton.addEventListener("click", recordExitTime);
@@ -2633,6 +2711,25 @@
       takeProfitPrice.value = (entry * 1.3).toFixed(2);
       stopLossPrice.value = (entry * 0.7).toFixed(2);
       updatePnlPreview();
+    }
+
+    function updateQuickCalculator() {
+      const entry = toNumber(calculatorEntryPrice.value);
+      if (!Number.isFinite(entry)) {
+        setCalculatorResult(calculatorTp30, calculatorTp30Diff, NaN, NaN);
+        setCalculatorResult(calculatorTp50, calculatorTp50Diff, NaN, NaN);
+        setCalculatorResult(calculatorSl30, calculatorSl30Diff, NaN, NaN);
+        return;
+      }
+
+      setCalculatorResult(calculatorTp30, calculatorTp30Diff, entry * 1.3, entry * 0.3);
+      setCalculatorResult(calculatorTp50, calculatorTp50Diff, entry * 1.5, entry * 0.5);
+      setCalculatorResult(calculatorSl30, calculatorSl30Diff, entry * 0.7, -entry * 0.3);
+    }
+
+    function setCalculatorResult(priceElement, diffElement, price, diff) {
+      priceElement.textContent = Number.isFinite(price) ? price.toFixed(2) : "-";
+      diffElement.textContent = Number.isFinite(diff) ? `价差 ${diff >= 0 ? "+" : ""}${diff.toFixed(2)}` : "价差 -";
     }
 
     function updatePnlPreview() {
