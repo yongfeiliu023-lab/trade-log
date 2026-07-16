@@ -1182,7 +1182,7 @@
     </nav>
 
     <section class="section view" id="tradeView">
-      <h2>交易导入</h2>
+      <h2>交易</h2>
       <div class="import-panel">
         <div>
           <div class="trade-box-title">Google Sheet 自动导入</div>
@@ -1220,7 +1220,11 @@
           </div>
         </div>
       </div>
-      <form id="tradeForm" class="hidden">
+      <div class="daily-review-summary">
+        <strong>手动新增交易记录</strong><br>
+        Google Sheet 没有同步到的交易，可以在这里手动补录。
+      </div>
+      <form id="tradeForm">
         <div class="field">
           <label for="date">日期</label>
           <input id="date" name="date" type="date" required>
